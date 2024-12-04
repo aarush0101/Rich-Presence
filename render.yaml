@@ -1,8 +1,8 @@
 services:
   - type: web
-    name: Discord-Rich-Presence
+    name: Rich-Presence
     runtime: node
-    repo: https://github.com/aarush0101/Discord-Rich-Presence
+    repo: https://github.com/aarush0101/Rich-Presence
     plan: free
     envVars:
       - key: BOT_TOKEN
