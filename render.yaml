@@ -1,0 +1,41 @@
+services:
+  - type: web
+    name: Discord-Rich-Presence
+    runtime: node
+    repo: https://github.com/aarush0101/Discord-Rich-Presence
+    plan: free
+    envVars:
+      - key: BOT_TOKEN
+        sync: true
+      - key: USER_TOKEN
+        sync: true
+      - key: CHANNEL_ID
+        sync: true
+      - key: LARGE_IMAGE_URL
+        sync: true
+      - key: LARGE_TEXT
+        sync: true
+      - key: SMALL_IMAGE_URL
+        sync: true
+      - key: SMALL_TEXT
+        sync: true
+      - key: TIMESTAMPS
+        sync: true
+      - key: STATE
+        sync: true
+      - key: DETAILS
+        sync: true
+      - key: TYPE
+        sync: true
+      - key: NAME
+        sync: true
+      - key: STATUS
+        sync: true
+      - key: START
+        sync: true
+      - key: NO_ACTIVITY
+        sync: true
+    region: oregon
+    buildCommand: npm install
+    startCommand: node main.js
+version: "1"
