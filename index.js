@@ -3,8 +3,6 @@ const WebSocket = require("ws");
 require("dotenv").config();
 const keep_alive = require("./src/keep_alive.js");
 
-keep_alive();
-
 const GATEWAY_URL = "wss://gateway.discord.gg/?v=10&encoding=json";
 
 let ws;
