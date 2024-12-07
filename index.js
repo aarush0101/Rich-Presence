@@ -17,12 +17,12 @@ const bot = new Client({
 });
 
 bot.once('ready', () => {
-  bot.user.setStatus('invisible')
-    .then(() => console.log('Bot is now invisible.'))
-    .catch((e) => {
-      console.error("An error occurred while setting the bot's activity to invisible: ", e);
-    });
+  bot.user.setPresence({
+    status: 'invisible', 
+  });
+  console.log('Bot is now invisible.');
 });
+
 
 
 function getVariables() {
