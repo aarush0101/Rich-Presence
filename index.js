@@ -1,7 +1,7 @@
 const { Client, GatewayIntentBits } = require("discord.js");
 const WebSocket = require("ws");
 require("dotenv").config();
-const keep_alive = require("./keep_alive.js");
+const keep_alive = require("./src/keep_alive.js");
 
 keep_alive();
 
@@ -18,6 +18,13 @@ const bot = new Client({
   ],
 });
 
+bot.once('ready', () => {
+  bot.user.setStatus('invisible')
+    .then(() => console.log('Bot is now invisible.'))
+    .catch(console.error);
+});
+
+
 function getVariables() {
   const variables = {
     botToken: process.env.BOT_TOKEN,
@@ -27,7 +34,7 @@ function getVariables() {
     smallImageUrl: process.env.SMALL_IMAGE_URL,
     smallText: process.env.SMALL_TEXT,
     largeText: process.env.LARGE_TEXT,
-    timestamps: process.env.TIMESTAMPS, // 'true' or 'false'
+    timestamps: process.env.TIMESTAMPS, 
     state: process.env.STATE,
     details: process.env.DETAILS,
     type: process.env.TYPE,
@@ -60,7 +67,6 @@ if (!BOT_TOKEN || !USER_TOKEN || !CHANNEL_ID) {
 }
 
 function getJSON() {
-  // Check if we are allowed to start activity
   if (
     !["true", "yes", "continue", "y"].includes(variables.start.toLowerCase())
   ) {
@@ -70,16 +76,12 @@ function getJSON() {
     process.exit(1);
   }
 
-  // Define activity structure
   const activities = [
     {
       name: variables.name,
       type: variables.type,
       details: variables.details,
       state: variables.state,
-      timestamps: {
-        start: Date.now(),
-      },
       assets: {
         large_image: variables.largeImageUrl,
         large_text: variables.largeText,
@@ -89,13 +91,16 @@ function getJSON() {
     },
   ];
 
+  if (
+    !["false", "no", "back", "n"].includes(variables.timestamps.toLowerCase())
+  ) activities["timestamps"] = { start: Date.now() };
+
   const data = {
     since: Date.now(),
-    status: variables.status, // Corrected from '$STATUS'
+    status: variables.status, 
     afk: false,
   };
 
-  // Include activities unless 'noActivity' is set to a value indicating no activity
   if (
     !["false", "no", "back", "n"].includes(variables.noActivity.toLowerCase())
   ) {
@@ -113,20 +118,21 @@ function setRichPresence() {
 
   ws.send(
     JSON.stringify({
-      op: 3, // Presence Update
+      op: 3, 
       d: data,
     })
   );
 
-  console.log("Rich Presence started.");
+  console.log("Rich Presence successfully set.");
 }
 
 function connectUserGateway() {
   if (ws) ws.close(); // Close existing connection if any
+
   ws = new WebSocket(GATEWAY_URL);
 
   ws.on("open", () => {
-    console.log("User connected to Discord Gateway");
+    console.log("User connected to Discord Gateway...");
 
     ws.send(
       JSON.stringify({
@@ -156,48 +162,55 @@ function connectUserGateway() {
     }
   });
 
-  ws.on("close", () => console.log("User disconnected from Discord Gateway"));
-  ws.on("error", (error) => console.error("WebSocket error:", error));
+  ws.on("close", () => console.log("User disconnected from Discord Gateway..."));
+  ws.on("error", (error) => console.error("WebSocket event error: ", error));
 }
 
 bot.on("messageCreate", (message) => {
   if (message.channel.id !== CHANNEL_ID) return;
 
+  if (!message.content) return;
+
   const command = message.content.toLowerCase();
 
-  if (command === "start") {
-    if (isActivityRunning) {
-      message.reply("Activity is already running.");
-      return;
-    }
+  try{
+    if (command === "start") {
+      if (isActivityRunning) {
+        message.reply("**Activity is already running. Please stop and run it again if you want to restart it.**");
+        return;
+      }
 
-    connectUserGateway();
-    isActivityRunning = true;
-    setTimeout(setRichPresence, 2000); // Ensure WebSocket is connected
-    message.reply("Rich Presence started.");
-  } else if (command === "stop") {
-    if (!isActivityRunning) {
-      message.reply("Activity is not running.");
-      return;
-    }
+      connectUserGateway();
+      isActivityRunning = true;
+      setTimeout(setRichPresence, 2000); // Ensure WebSocket is connected
+      message.reply("**Rich Presence started. To stop, simply type `stop`, to restart, simply type `restart`.**");
+    } else if (command === "stop") {
+      if (!isActivityRunning) {
+        message.reply("**Activity is not running. Use `start` first**");
+        return;
+      }
 
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.close();
-    }
-    isActivityRunning = false;
-    message.reply("Rich Presence stopped.");
-  } else if (command === "restart") {
-    if (!isActivityRunning) {
-      message.reply("Activity is not running. Use `start` first.");
-      return;
-    }
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
+      isActivityRunning = false;
+      message.reply("**Rich Presence stopped. You can restart it again using `start`.***");
+    } else if (command === "restart") {
+      if (!isActivityRunning) {
+        message.reply("**Activity is not running. Use `start` first.**");
+        return;
+      }
 
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.close();
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
+      connectUserGateway();
+      setTimeout(setRichPresence, 2000);
+      message.reply("**Rich Presence restarted. To stop, simply use `stop`.**");
     }
-    connectUserGateway();
-    setTimeout(setRichPresence, 2000);
-    message.reply("Rich Presence restarted.");
+  }
+  catch (e) { 
+    console.error("Rich presence backend exception: ", e)
   }
 });
 
@@ -211,5 +224,5 @@ bot
   });
 
 bot.on("error", (err) => {
-  console.error("An error occurred for the bot: " + err); // or your preferred logger
+  console.error("An error occurred for the bot: " + err); 
 });
