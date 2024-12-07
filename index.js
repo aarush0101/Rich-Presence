@@ -21,7 +21,9 @@ const bot = new Client({
 bot.once('ready', () => {
   bot.user.setStatus('invisible')
     .then(() => console.log('Bot is now invisible.'))
-    .catch(console.error);
+    .catch((e) => {
+      console.error("An error occurred while setting the bot's activity to invisible: ", e);
+    });
 });
 
 
@@ -163,7 +165,7 @@ function connectUserGateway() {
   });
 
   ws.on("close", () => console.log("User disconnected from Discord Gateway..."));
-  ws.on("error", (error) => console.error("WebSocket event error: ", error));
+  ws.on("error", (e) => console.error("WebSocket event error: ", e));
 }
 
 bot.on("messageCreate", (message) => {
@@ -220,9 +222,9 @@ bot
     console.log("Bot is online and ready to monitor commands.");
   })
   .catch((e) => {
-    console.error("An error occurred: " + e);
+    console.error("An error occurred while starting the bot: ", e);
   });
 
-bot.on("error", (err) => {
-  console.error("An error occurred for the bot: " + err); 
+bot.on("error", (e) => {
+  console.error("An error occurred during runtime of the bot: ", e); 
 });
