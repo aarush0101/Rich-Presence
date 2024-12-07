@@ -7,6 +7,8 @@ const GATEWAY_URL = "wss://gateway.discord.gg/?v=10&encoding=json";
 
 let ws;
 let isActivityRunning = false;
+let heartbeatIntervalId; 
+let presenceIntervalId;
 
 const bot = new Client({
   intents: [
@@ -126,6 +128,7 @@ function setRichPresence() {
   console.log("Rich Presence successfully set.");
 }
 
+
 function connectUserGateway() {
   if (ws) ws.close(); // Close existing connection if any
 
@@ -148,6 +151,12 @@ function connectUserGateway() {
         },
       })
     );
+
+    if (presenceIntervalId) clearInterval(presenceIntervalId);
+
+    presenceIntervalId = setInterval(() => {
+      setRichPresence();
+    }, 15000); // 15 seconds
   });
 
   ws.on("message", (data) => {
@@ -155,16 +164,25 @@ function connectUserGateway() {
 
     if (payload.op === 10) {
       const heartbeatInterval = payload.d.heartbeat_interval;
-      setInterval(
-        () => ws.send(JSON.stringify({ op: 1, d: null })),
-        heartbeatInterval
-      );
+
+      if (heartbeatIntervalId) clearInterval(heartbeatIntervalId);
+
+      heartbeatIntervalId = setInterval(() => {
+        ws.send(JSON.stringify({ op: 1, d: null }));
+      }, heartbeatInterval);
     }
   });
 
-  ws.on("close", () => console.log("User disconnected from Discord Gateway..."));
+  ws.on("close", () => {
+    console.log("User disconnected from Discord Gateway...");
+    // Clear intervals on disconnect to avoid memory leaks
+    if (heartbeatIntervalId) clearInterval(heartbeatIntervalId);
+    if (presenceIntervalId) clearInterval(presenceIntervalId);
+  });
+
   ws.on("error", (e) => console.error("WebSocket event error: ", e));
 }
+
 
 bot.on("messageCreate", (message) => {
   if (message.channel.id !== CHANNEL_ID) return;
