@@ -197,6 +197,9 @@ bot.on("messageCreate", (message) => {
       }
       isActivityRunning = false;
       message.reply("**Rich Presence stopped. You can restart it again using `start`.***");
+    } else if (["alive", "ping"].includes(command.toLowerCase())) { 
+      const latency = Math.round(bot.ws.ping)
+      message.reply(`**Pong! Latency: ${latency} ms**`);
     } else if (command === "restart") {
       if (!isActivityRunning) {
         message.reply("**Activity is not running. Use `start` first.**");
