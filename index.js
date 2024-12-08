@@ -8,6 +8,7 @@ const GATEWAY_URL = "wss://gateway.discord.gg/?v=10&encoding=json";
 let ws;
 let isActivityRunning = false;
 let heartbeatInterval; 
+let shouldReconnect = true;
 
 const bot = new Client({
   intents: [
@@ -80,7 +81,7 @@ function getJSON() {
   const activities = [
     {
       name: variables.name,
-      type: variables.type,
+      type: Number(variables.type),
       details: variables.details,
       state: variables.state,
       assets: {
@@ -154,6 +155,11 @@ function connectUserGateway() {
             os: "Windows",
             browser: "Chrome",
             device: "desktop",
+            browser_user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36",
+            browser_version: "106.0.0.0",
+            os_version: "10",
+            release_channel: "stable",
+            client_build_number: 134113,
           },
         },
       })
@@ -183,12 +189,13 @@ function connectUserGateway() {
     console.log(`Disconnected. Code: ${code}, Reason: ${reason || "No reason provided."}`);
 
     if (heartbeatInterval) clearInterval(heartbeatInterval);
-
+    
     // Attempt to reconnect unless it's a critical error
-    if (![4004, 4010, 4011].includes(code)) {
+    if (shouldReconnect && ![4004, 4010, 4011].includes(code)) {
       console.log("Reconnecting in 5 seconds...");
       setTimeout(connectUserGateway, 5000);
     } else {
+      if (!shouldReconnect) return;
       console.error("Critical error. Manual intervention required.");
     }
   });
@@ -216,6 +223,7 @@ bot.on("messageCreate", (message) => {
       connectUserGateway();
       isActivityRunning = true;
       setTimeout(setRichPresence, 2000); // Ensure WebSocket is connected
+      shouldReconnect = true;
       message.reply("**Rich Presence started. To stop, simply type `stop`, to restart, simply type `restart`.**");
     } else if (command === "stop") {
       if (!isActivityRunning) {
@@ -223,6 +231,7 @@ bot.on("messageCreate", (message) => {
         return;
       }
 
+      shouldReconnect = false;
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.close();
       }
@@ -236,7 +245,8 @@ bot.on("messageCreate", (message) => {
         message.reply("**Activity is not running. Use `start` first.**");
         return;
       }
-
+      
+      shouldReconnect = true;
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.close();
       }
