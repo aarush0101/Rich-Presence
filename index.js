@@ -93,9 +93,10 @@ function getJSON() {
     },
   ];
 
-  if (
-    !["false", "no", "back", "n"].includes(variables.timestamps.toLowerCase())
-  ) activities["timestamps"] = { start: Date.now() };
+  if (!["false", "no", "back", "n"].includes(variables.timestamps.toLowerCase()) && 
+      !["true", "yes", "continue", "y"].includes(variables.noActivity.toLowerCase())) {
+    activities[0].timestamps = { start: Date.now() };
+  }
 
   const data = {
     since: Date.now(),
@@ -103,11 +104,7 @@ function getJSON() {
     afk: false,
   };
 
-  if (
-    !["false", "no", "back", "n"].includes(variables.noActivity.toLowerCase())
-  ) {
-    data.activities = activities;
-  }
+  if (!["false", "no", "back", "n"].includes(variables.noActivity.toLowerCase())) data.activities = activities;
 
   return data;
 }
