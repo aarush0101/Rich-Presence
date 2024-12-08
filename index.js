@@ -93,19 +93,31 @@ function getJSON() {
     },
   ];
 
-  if (!["false", "no", "back", "n"].includes(variables.timestamps.toLowerCase()) && 
-      !["true", "yes", "continue", "y"].includes(variables.noActivity.toLowerCase())) {
+  // Only add timestamps if noActivity is "false"
+  if (
+    !["false", "no", "back", "n"].includes(variables.timestamps.toLowerCase()) &&
+    !["true", "yes", "continue", "y"].includes(variables.noActivity.toLowerCase())
+  ) {
     activities[0].timestamps = { start: Date.now() };
   }
 
   const data = {
     since: Date.now(),
-    status: variables.status, 
+    status: variables.status,
     afk: false,
   };
 
-  if (!["false", "no", "back", "n"].includes(variables.noActivity.toLowerCase())) data.activities = activities;
+  // Add activities only if noActivity is not "true", "no", "back", or "n"
+  if (!["true", "no", "back", "n"].includes(variables.noActivity.toLowerCase())) {
+    data.activities = activities;
+  }
 
+  // If noActivity is true, ensure activities are omitted
+  if (variables.noActivity.toLowerCase() === "true") {
+    delete data.activities; // Explicitly remove activities if noActivity is true
+  }
+
+  console.log("Payload being sent:", JSON.stringify({ op: 3, d: data }, null, 2));
   return data;
 }
 
