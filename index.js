@@ -130,57 +130,62 @@ function setRichPresence() {
 
 
 function connectUserGateway() {
-  if (ws) ws.close(); // Close existing connection if any
+  if (ws) ws.close();
 
   ws = new WebSocket(GATEWAY_URL);
 
   ws.on("open", () => {
-    console.log("User connected to Discord Gateway...");
+      console.log("User connected to Discord Gateway...");
 
-    ws.send(
-      JSON.stringify({
-        op: 2,
-        d: {
-          token: USER_TOKEN,
-          properties: {
-            os: "Windows",
-            browser: "Chrome",
-            device: "",
-          },
-          compress: false,
-        },
-      })
-    );
+      ws.send(
+          JSON.stringify({
+              op: 2,
+              d: {
+                  token: USER_TOKEN,
+                  properties: {
+                      os: "Windows",
+                      browser: "Chrome",
+                      device: null,
+                  },
+                  compress: false,
+              },
+          })
+      );
 
-    if (presenceIntervalId) clearInterval(presenceIntervalId);
-
-    presenceIntervalId = setInterval(() => {
-      setRichPresence();
-    }, 15000); // 15 seconds
+      setTimeout(setRichPresence, 5000); // Wait 5 seconds before sending presence
   });
 
   ws.on("message", (data) => {
-    const payload = JSON.parse(data);
+      const payload = JSON.parse(data);
 
-    if (payload.op === 10) {
-      const heartbeatInterval = payload.d.heartbeat_interval;
+      if (payload.op === 10) {
+          const heartbeatInterval = payload.d.heartbeat_interval;
+
+          if (heartbeatIntervalId) clearInterval(heartbeatIntervalId);
+
+          // Send the first heartbeat immediately
+          ws.send(JSON.stringify({ op: 1, d: null }));
+
+          heartbeatIntervalId = setInterval(() => {
+              ws.send(JSON.stringify({ op: 1, d: null }));
+          }, heartbeatInterval);
+      }
+  });
+
+  ws.on("close", (code, reason) => {
+      console.log(`WebSocket closed: ${code} - ${reason}`);
+      if ([1006, 4004, 4010, 4011].includes(code)) {
+          console.error("Connection closed due to a critical issue. Check your token or payload.");
+      } else {
+          console.log("Attempting to reconnect in 5 seconds...");
+          setTimeout(connectUserGateway, 5000);
+      }
 
       if (heartbeatIntervalId) clearInterval(heartbeatIntervalId);
-
-      heartbeatIntervalId = setInterval(() => {
-        ws.send(JSON.stringify({ op: 1, d: null }));
-      }, heartbeatInterval);
-    }
+      if (presenceIntervalId) clearInterval(presenceIntervalId);
   });
 
-  ws.on("close", () => {
-    console.log("User disconnected from Discord Gateway...");
-    // Clear intervals on disconnect to avoid memory leaks
-    if (heartbeatIntervalId) clearInterval(heartbeatIntervalId);
-    if (presenceIntervalId) clearInterval(presenceIntervalId);
-  });
-
-  ws.on("error", (e) => console.error("WebSocket event error: ", e));
+  ws.on("error", (e) => console.error("WebSocket error: ", e));
 }
 
 
