@@ -1,15 +1,17 @@
-const { Client, GatewayIntentBits } = require("discord.js");
+// app.js
 const WebSocket = require("ws");
+const { Client, GatewayIntentBits } = require("discord.js");
+const AsyncLock = require("async-lock");
 require("dotenv").config();
-const keep_alive = require("./src/keep_alive.js");
 
 const GATEWAY_URL = "wss://gateway.discord.gg/?v=10&encoding=json";
+const lock = new AsyncLock(); // Ensures only one function runs at a time
 
-let ws;
-let isActivityRunning = false;
-let heartbeatIntervalId; 
-let presenceIntervalId;
+let ws; // WebSocket connection for the user
+let heartbeatIntervalId; // Interval ID for heartbeats
+let isActivityRunning = false; // Track if presence activity is running
 
+// Bot Client Initialization
 const bot = new Client({
   intents: [
     GatewayIntentBits.GuildMessages,
@@ -18,237 +20,161 @@ const bot = new Client({
   ],
 });
 
-bot.once('ready', () => {
-  bot.user.setPresence({
-    status: 'invisible', 
-  });
-  console.log('Bot is now invisible.');
-});
-
-
-
-function getVariables() {
-  const variables = {
-    botToken: process.env.BOT_TOKEN,
-    userToken: process.env.USER_TOKEN,
-    channelId: process.env.CHANNEL_ID,
-    largeImageUrl: process.env.LARGE_IMAGE_URL,
-    smallImageUrl: process.env.SMALL_IMAGE_URL,
-    smallText: process.env.SMALL_TEXT,
-    largeText: process.env.LARGE_TEXT,
-    timestamps: process.env.TIMESTAMPS, 
-    state: process.env.STATE,
-    details: process.env.DETAILS,
-    type: process.env.TYPE,
-    name: process.env.NAME,
-    status: process.env.STATUS,
-    start: process.env.START,
-    noActivity: process.env.NO_ACTIVITY,
-  };
-  return variables;
-}
-
-const variables = getVariables();
-
-const BOT_TOKEN = variables.botToken;
-const USER_TOKEN = variables.userToken;
-const CHANNEL_ID = variables.channelId;
-
-if (!["true", "yes", "continue", "y"].includes(variables.start.toLowerCase())) {
-  console.error(
-    "Missing permission to start activity. Please re-check your configuration and try again."
-  );
-  process.exit(1);
-}
-
-if (!BOT_TOKEN || !USER_TOKEN || !CHANNEL_ID) {
-  console.error(
-    "Missing BOT_TOKEN or USER_TOKEN or CHANNEL_ID in .env file. Please re-check your configuration and try again."
-  );
-  process.exit(1);
-}
-
-function getJSON() {
-  if (
-    !["true", "yes", "continue", "y"].includes(variables.start.toLowerCase())
-  ) {
-    console.error(
-      "Missing permission to start activity. Please re-check your configuration and try again."
-    );
-    process.exit(1);
-  }
-
-  const activities = [
-    {
-      name: variables.name,
-      type: variables.type,
-      details: variables.details,
-      state: variables.state,
-      assets: {
-        large_image: variables.largeImageUrl,
-        large_text: variables.largeText,
-        small_image: variables.smallImageUrl,
-        small_text: variables.smallText,
-      },
-    },
-  ];
-
-  if (
-    !["false", "no", "back", "n"].includes(variables.timestamps.toLowerCase())
-  ) activities["timestamps"] = { start: Date.now() };
-
-  const data = {
-    since: Date.now(),
-    status: variables.status, 
-    afk: false,
-  };
-
-  if (
-    !["false", "no", "back", "n"].includes(variables.noActivity.toLowerCase())
-  ) {
-    data.activities = activities;
-  }
-
-  return data;
-}
-
-function setRichPresence() {
-  // Check WebSocket state before sending
-  if (!ws || ws.readyState !== WebSocket.OPEN) return;
-
-  const data = getJSON();
-
-  ws.send(
-    JSON.stringify({
-      op: 3, 
-      d: data,
-    })
-  );
-
-  console.log("Rich Presence successfully set.");
-}
-
-
-function connectUserGateway() {
-  if (ws) ws.close();
+// Connect to Discord Gateway as User
+const connectUserGateway = () => {
+  if (ws) ws.close(); // Close any existing WebSocket connection
 
   ws = new WebSocket(GATEWAY_URL);
 
   ws.on("open", () => {
-      console.log("User connected to Discord Gateway...");
-
-      ws.send(
-          JSON.stringify({
-              op: 2,
-              d: {
-                  token: USER_TOKEN,
-                  properties: {
-                      os: "Windows",
-                      browser: "Chrome",
-                      device: null,
-                  },
-                  compress: false,
-              },
-          })
-      );
-
-      setTimeout(setRichPresence, 5000); // Wait 5 seconds before sending presence
+    console.log("Connected to Discord Gateway as a user.");
+    // Send Identify payload
+    ws.send(
+      JSON.stringify({
+        op: 2,
+        d: {
+          token: process.env.USER_TOKEN,
+          properties: {
+            os: "Windows",
+            browser: "Chrome",
+            device: "Desktop",
+          },
+          compress: false,
+        },
+      })
+    );
   });
 
   ws.on("message", (data) => {
-      const payload = JSON.parse(data);
+    const payload = JSON.parse(data);
 
-      if (payload.op === 10) {
-          const heartbeatInterval = payload.d.heartbeat_interval;
+    if (payload.op === 10) {
+      const heartbeatInterval = payload.d.heartbeat_interval;
 
-          if (heartbeatIntervalId) clearInterval(heartbeatIntervalId);
+      if (heartbeatIntervalId) clearInterval(heartbeatIntervalId);
 
-          // Send the first heartbeat immediately
-          ws.send(JSON.stringify({ op: 1, d: null }));
+      // Send the first heartbeat immediately
+      ws.send(JSON.stringify({ op: 1, d: null }));
 
-          heartbeatIntervalId = setInterval(() => {
-              ws.send(JSON.stringify({ op: 1, d: null }));
-          }, heartbeatInterval);
-      }
+      heartbeatIntervalId = setInterval(() => {
+        ws.send(JSON.stringify({ op: 1, d: null }));
+      }, heartbeatInterval);
+    }
   });
 
   ws.on("close", (code, reason) => {
-      console.log(`WebSocket closed: ${code} - ${reason}`);
-      if ([1006, 4004, 4010, 4011].includes(code)) {
-          console.error("Connection closed due to a critical issue. Check your token or payload.");
-      } else {
-          console.log("Attempting to reconnect in 5 seconds...");
-          setTimeout(connectUserGateway, 5000);
-      }
+    console.error(`WebSocket closed: ${code} - ${reason}`);
+    if (heartbeatIntervalId) clearInterval(heartbeatIntervalId);
 
-      if (heartbeatIntervalId) clearInterval(heartbeatIntervalId);
-      if (presenceIntervalId) clearInterval(presenceIntervalId);
+    // Attempt reconnect for non-critical errors
+    if (![4004, 4010, 4011].includes(code)) {
+      console.log("Reconnecting in 5 seconds...");
+      setTimeout(connectUserGateway, 5000);
+    }
   });
 
-  ws.on("error", (e) => console.error("WebSocket error: ", e));
-}
+  ws.on("error", (err) => {
+    console.error("WebSocket Error:", err);
+  });
+};
 
+// Set Rich Presence
+const setRichPresence = (presenceData) => {
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    console.error("WebSocket is not open. Unable to set presence.");
+    return;
+  }
 
+  const data = presenceData || {
+    since: Date.now(),
+    status: process.env.STATUS || "online",
+    activities: [
+      {
+        name: "Playing a cool game",
+        type: 0, // 0 = Playing, 1 = Streaming, 2 = Listening, etc.
+      },
+    ],
+    afk: false,
+  };
+
+  ws.send(
+    JSON.stringify({
+      op: 3,
+      d: data,
+    })
+  );
+  console.log("Rich Presence updated.");
+};
+
+// Bot Ready Event
+bot.once("ready", () => {
+  console.log("Bot is online.");
+  bot.user.setPresence({ status: "invisible" }); // Set bot status to invisible
+});
+
+// Bot Command Handling
 bot.on("messageCreate", (message) => {
-  if (message.channel.id !== CHANNEL_ID) return;
-
-  if (!message.content) return;
+  if (message.channel.id !== process.env.CHANNEL_ID || !message.content) return;
 
   const command = message.content.toLowerCase();
 
-  try{
-    if (command === "start") {
-      if (isActivityRunning) {
-        message.reply("**Activity is already running. Please stop and run it again if you want to restart it.**");
-        return;
+  lock.acquire("commandLock", async (done) => {
+    try {
+      if (command === "start") {
+        if (isActivityRunning) {
+          message.reply("**Activity is already running. Stop it first to restart.**");
+          return;
+        }
+        connectUserGateway();
+        isActivityRunning = true;
+        setTimeout(setRichPresence, 2000); // Allow time for connection
+        message.reply("**Rich Presence started. Use `stop` to halt it.**");
+      } else if (command === "stop") {
+        if (!isActivityRunning) {
+          message.reply("**No active activity. Use `start` first.**");
+          return;
+        }
+        setRichPresence(null); // Clear presence
+        isActivityRunning = false;
+        message.reply("**Rich Presence stopped. Use `start` to resume.**");
+      } else if (command === "restart") {
+        if (!isActivityRunning) {
+          message.reply("**No active activity. Use `start` first.**");
+          return;
+        }
+        setRichPresence(null); // Clear existing presence
+        connectUserGateway();
+        setTimeout(setRichPresence, 2000);
+        message.reply("**Rich Presence restarted. Use `stop` to halt it.**");
+      } else if (["alive", "ping"].includes(command)) {
+        const latency = Math.round(bot.ws.ping);
+        message.reply(`**Pong! Latency: ${latency} ms**`);
       }
-
-      connectUserGateway();
-      isActivityRunning = true;
-      setTimeout(setRichPresence, 2000); // Ensure WebSocket is connected
-      message.reply("**Rich Presence started. To stop, simply type `stop`, to restart, simply type `restart`.**");
-    } else if (command === "stop") {
-      if (!isActivityRunning) {
-        message.reply("**Activity is not running. Use `start` first**");
-        return;
-      }
-
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.close();
-      }
-      isActivityRunning = false;
-      message.reply("**Rich Presence stopped. You can restart it again using `start`.***");
-    } else if (["alive", "ping"].includes(command.toLowerCase())) { 
-      const latency = Math.round(bot.ws.ping)
-      message.reply(`**Pong! Latency: ${latency} ms**`);
-    } else if (command === "restart") {
-      if (!isActivityRunning) {
-        message.reply("**Activity is not running. Use `start` first.**");
-        return;
-      }
-
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.close();
-      }
-      connectUserGateway();
-      setTimeout(setRichPresence, 2000);
-      message.reply("**Rich Presence restarted. To stop, simply use `stop`.**");
+    } catch (err) {
+      console.error("Command execution error:", err);
+      message.reply("**An error occurred while executing the command. Please try again.**");
+    } finally {
+      done(); // Release the lock
     }
-  }
-  catch (e) { 
-    console.error("Rich presence backend exception: ", e)
-  }
+  });
 });
 
-bot
-  .login(BOT_TOKEN)
-  .then(() => {
-    console.log("Bot is online and ready to monitor commands.");
-  })
-  .catch((e) => {
-    console.error("An error occurred while starting the bot: ", e);
+// Prevent Duplicate Bot Instances
+if (!process.env.RENDER_INSTANCE_ID) {
+  bot.login(process.env.BOT_TOKEN).catch((err) => {
+    console.error("Failed to log in:", err);
   });
+} else {
+  console.log("Bot instance already running. Preventing duplicate execution.");
+}
 
-bot.on("error", (e) => {
-  console.error("An error occurred during runtime of the bot: ", e); 
+// Handle Bot Errors
+bot.on("error", console.error);
+
+// Handle Process Exit
+process.on("SIGTERM", () => {
+  console.log("Terminating bot process...");
+  if (ws) ws.close();
+  if (heartbeatIntervalId) clearInterval(heartbeatIntervalId);
+  process.exit(0);
 });
