@@ -7,8 +7,7 @@ const GATEWAY_URL = "wss://gateway.discord.gg/?v=10&encoding=json";
 
 let ws;
 let isActivityRunning = false;
-let heartbeatIntervalId; 
-let presenceIntervalId;
+let heartbeatInterval; 
 
 const bot = new Client({
   intents: [
