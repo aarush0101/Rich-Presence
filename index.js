@@ -143,7 +143,7 @@ function connectUserGateway() {
   ws = new WebSocket(GATEWAY_URL);
 
   ws.on("open", () => {
-    console.log("User connected to Discord Gateway...");
+    console.log("Connected to Discord Gateway...");
 
     // Send Identify payload
     ws.send(
@@ -154,49 +154,40 @@ function connectUserGateway() {
           properties: {
             os: "Windows",
             browser: "Chrome",
-            device: null,
+            device: "desktop",
           },
-          compress: false,
         },
       })
     );
-
-    // Clear any existing presence interval to prevent duplication
-    if (presenceIntervalId) clearInterval(presenceIntervalId);
-
-    // Start a new interval to update Rich Presence every 15 seconds
-    presenceIntervalId = setInterval(() => {
-      setRichPresence();
-    }, 15000);
   });
 
   ws.on("message", (data) => {
     const payload = JSON.parse(data);
 
-    // Handle heartbeat interval from the server
     if (payload.op === 10) {
-      const heartbeatInterval = payload.d.heartbeat_interval;
+      const heartbeatIntervalMs = payload.d.heartbeat_interval;
 
-      if (heartbeatIntervalId) clearInterval(heartbeatIntervalId);
+      if (heartbeatInterval) clearInterval(heartbeatInterval);
 
-      // Send initial heartbeat and set up regular heartbeats
-      heartbeatIntervalId = setInterval(() => {
-        ws.send(JSON.stringify({ op: 1, d: null })); // Send heartbeat
-      }, heartbeatInterval);
-      console.log("Heartbeat interval set.");
+      // Send heartbeats at the specified interval
+      heartbeatInterval = setInterval(() => {
+        ws.send(JSON.stringify({ op: 1, d: null }));
+        console.log("Heartbeat sent.");
+      }, heartbeatIntervalMs);
+
+      // Set initial activity after connecting
+      setTimeout(setRichPresence, 1000);
     }
   });
 
   ws.on("close", (code, reason) => {
-    console.log(`User disconnected from Discord Gateway. Code: ${code}, Reason: ${reason}`);
+    console.log(`Disconnected. Code: ${code}, Reason: ${reason || "No reason provided."}`);
 
-    // Clear intervals on disconnect to avoid memory leaks
-    if (heartbeatIntervalId) clearInterval(heartbeatIntervalId);
-    if (presenceIntervalId) clearInterval(presenceIntervalId);
+    if (heartbeatInterval) clearInterval(heartbeatInterval);
 
-    // Attempt to reconnect for recoverable errors
+    // Attempt to reconnect unless it's a critical error
     if (![4004, 4010, 4011].includes(code)) {
-      console.log("Attempting to reconnect in 5 seconds...");
+      console.log("Reconnecting in 5 seconds...");
       setTimeout(connectUserGateway, 5000);
     } else {
       console.error("Critical error. Manual intervention required.");
