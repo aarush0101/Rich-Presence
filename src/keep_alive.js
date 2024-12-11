@@ -1,13 +1,11 @@
 const http = require("http");
 const { logDebug, logInfo } = require("./utilities");
 
-// Use the platform-assigned port, or default to 8080 locally
 const PORT = process.env.PORT || 8080;
 const HOST = process.env.HOST || "localhost";
 
 const startTime = Date.now();
 
-// Function to format time as hh:mm:ss:ms
 function formatUptime() {
   const uptime = Date.now() - startTime;
   const hours = Math.floor(uptime / (1000 * 60 * 60));
@@ -18,28 +16,62 @@ function formatUptime() {
   return `${hours}h ${minutes}m ${seconds}s ${milliseconds}ms`;
 }
 
-// Create the server
+function getClientIp(req) {
+  return req.headers["x-forwarded-for"] || req.connection.remoteAddress;
+}
+
 http
   .createServer((req, res) => {
     const url = req.url;
     const method = req.method;
 
-    // Set HTTP headers
-    res.setHeader("Content-Type", "text/plain");
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Accept", "application/json");
 
-    // Route handling
+    let response = {};
+    const ip = getClientIp(req);
+    const currentTime = new Date().toLocaleString();
+    const uptime = formatUptime();
+    const version = req.httpVersion;
+
     if (url === "/") {
-      res.write(`Connected!\n`);
-      res.write(`Uptime: ${formatUptime()}`)
+      response = {
+        status: "Connected",
+        code: res.statusCode,
+        uptime,
+        currentTime,
+        ip,
+        version,
+      };
     } else if (url === "/status") {
-      res.write("Server is running smoothly.\n");
-      res.write(`Current Time: ${new Date().toLocaleString()}\n`);
-      res.write(`Current Time: ${formatUptime()}`);
+      response = {
+        status: "Running",
+        code: res.statusCode,
+        uptime,
+        currentTime,
+        ip,
+        version,
+      };
     } else if (url === "/hello") {
-      res.write("Hello there! Welcome to the server.");
+      response = { status: "Hello! Welcome to the server!" };
     } else {
       res.statusCode = 404;
-      res.write("404 Not Found: The requested resource does not exist.");
+      response = {
+        status: "Connected",
+        code: res.statusCode,
+        uptime,
+        currentTime,
+        ip,
+        version,
+        error: "This endpoint does not exist here.",
+      };
+    }
+
+    try {
+      res.write(JSON.stringify(response));
+    } catch (error) {
+      res.statusCode = 500;
+      res.write(JSON.stringify({ error: "Failed to process response" }));
     }
 
     logDebug(`[${new Date().toISOString()}] ${method} ${url}`);
@@ -47,5 +79,7 @@ http
   })
   .listen(PORT, () => {
     logInfo(`Server is running at http://${HOST}:${PORT}`);
-    logInfo("Make sure to use your deployed server's public URL if hosted online.");
+    logInfo(
+      "Make sure to use your deployed server's public URL if hosted online."
+    );
   });
