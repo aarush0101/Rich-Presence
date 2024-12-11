@@ -1,5 +1,5 @@
 const http = require("http");
-const { logDebug, logInfo } = require("./utilities");
+const { logDebug, logInfo, logError } = require("./utilities");
 
 const PORT = process.env.PORT || 8080;
 const HOST = process.env.HOST || "localhost";
@@ -17,7 +17,7 @@ function formatUptime() {
 }
 
 function getClientIp(req) {
-  return req.headers["x-forwarded-for"] || req.connection.remoteAddress;
+  return req.headers["x-forwarded-for"] || req.socket.remoteAddress;
 }
 
 http
@@ -53,12 +53,19 @@ http
         version,
       };
     } else if (url === "/hello") {
-      response = { status: "Hello! Welcome to the server!" };
-    } else {
-      res.statusCode = 404;
       response = {
-        status: "Connected",
+        status: "Hello! Welcome to the server!",
         code: res.statusCode,
+        uptime,
+        currentTime,
+        ip,
+        version,
+      };
+    } else {
+      res.writeHead(404, { "Content-Type": "application/json" });
+      response = {
+        status: "Not Found",
+        code: 404,
         uptime,
         currentTime,
         ip,
@@ -70,11 +77,18 @@ http
     try {
       res.write(JSON.stringify(response));
     } catch (error) {
+      logError(
+        `[${new Date().toISOString()}] Failed to write response for IP: ${ip} due to unknown exception: ${error} at url: ${url}`
+      );
       res.statusCode = 500;
       res.write(JSON.stringify({ error: "Failed to process response" }));
     }
 
-    logDebug(`[${new Date().toISOString()}] ${method} ${url}`);
+    logDebug(
+      `[${new Date().toISOString()}] [IP: ${ip}, CODE: ${
+        res.statusCode
+      }] ${method} - ${url}`
+    );
     res.end();
   })
   .listen(PORT, () => {
