@@ -190,6 +190,7 @@ function launchEris(token) {
       logError(`Eris runtime error for token: ${token.slice(0, 10)}...`, e)
     );
     erisMap.set(token, erisInstance);
+    erisInstance.editStatus(variables.status, []);
     logInfo(`Successfully launched Eris for token: ${token.slice(0, 10)}...`);
   } catch (e) {
     logError(`Failed to launch Eris for token: ${token.slice(0, 10)}.`, e);
