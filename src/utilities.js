@@ -10,6 +10,19 @@ function logDebug(message, debug = null) {
   console.debug(`[DEBUG] ${message}`, debug || "");
 }
 
+function verifyStatus(status) {
+  if (!status) return [false, null];
+
+  const allowedStatuses = ["online", "idle", "dnd", "invisible", "offline"];
+  if (!allowedStatuses.includes(status)) {
+    logError(`Invalid status provided: ${status}`);
+    const refined = status === "offline" ? "invisible" : null;
+    return [false, refined];
+  }
+
+  return [true, status];
+}
+
 function validateEnvVariables() {
   const requiredVariables = ["BOT_TOKEN", "USER_TOKEN", "CHANNEL_ID", "START"];
   requiredVariables.forEach((variable) => {
@@ -58,4 +71,5 @@ module.exports = {
   isFalse,
   isTrue,
   logDebug,
+  verifyStatus,
 };
