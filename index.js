@@ -11,10 +11,11 @@ const {
   isActivityDisabled,
   isTrue,
   logDebug,
+  verifyStatus,
 } = require("./src/utilities.js");
 
 if (!isStartEnabled()) {
-  logError("[ERROR] No permission to start the server...");
+  logError("No permission to start the server...");
   process.exit(1);
 }
 
@@ -99,7 +100,7 @@ function structureData() {
   return data;
 }
 
-function setRichPresence() {
+function setRichPresence(ws, token) {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
   const data = structureData();
@@ -111,7 +112,7 @@ function setRichPresence() {
     })
   );
 
-  logDebug("Rich presence successfully sent...");
+  logInfo(`Rich presence successfully sent for token ${token.slice(0, 10)}...`);
 }
 
 function connectUserGateway(token) {
@@ -151,7 +152,7 @@ function connectUserGateway(token) {
 
       heartbeatIntervals.set(token, interval);
 
-      setTimeout(() => setRichPresence(ws), 1000);
+      setTimeout(() => setRichPresence(ws, token), 1000);
     }
   });
 
@@ -170,15 +171,17 @@ function connectUserGateway(token) {
       logInfo(`Reconnecting in 5 seconds for token: ${token.slice(0, 10)}...`);
       setTimeout(() => connectUserGateway(token), 5000);
     } else {
-      wsMap.delete(token);
+      if (wsMap.has(token)) {
+        wsMap.delete(token);
+      }
     }
   });
+
+  wsMap.set(token, ws);
 
   ws.on("error", (error) => {
     logError(`WebSocket error for token: ${token.slice(0, 10)}...`, error);
   });
-
-  wsMap.set(token, ws);
 }
 
 function launchEris(token) {
@@ -259,41 +262,143 @@ function disconnectEris() {
 
   erisMap.clear();
 }
-
 const commands = {
-  start: (message) => {
-    if (isActivityRunning) {
-      message.reply("**Activity is already running. Use `stop` to restart.**");
-      return;
-    }
+  start: async (message) => {
+    try {
+      if (!message) {
+        if (isActivityDisabled()) {
+          userTokens.forEach((token) => launchEris(token));
+        } else {
+          userTokens.forEach((token) => connectUserGateway(token));
+        }
+        return;
+      }
+      if (isActivityRunning) {
+        message.reply(
+          "**Activity is already running. Use `stop` to restart.**"
+        );
+        return;
+      }
 
-    if (isActivityDisabled()) {
-      userTokens.forEach((token) => launchEris(token));
-    } else {
-      userTokens.forEach((token) => connectUserGateway(token));
-    }
+      if (isActivityDisabled()) {
+        userTokens.forEach((token) => launchEris(token));
+      } else {
+        userTokens.forEach((token) => connectUserGateway(token));
+      }
 
-    isActivityRunning = true;
-    message.reply(
-      "**Rich Presence started for all tokens. Use `stop` to stop it.**"
-    );
+      isActivityRunning = true;
+      message.reply(
+        "**Rich Presence started for all tokens. Use `stop` to stop it.**"
+      );
+    } catch (e) {
+      logError(
+        "An unexpected error occurred while executing start command:",
+        e
+      );
+      message.reply(`**An unexpected error occurred: ${e}**`);
+    }
   },
-  stop: (message) => {
-    if (!isActivityRunning) {
-      message.reply("**Activity is not running. Use `start` first.**");
-      return;
-    }
 
-    if (isActivityDisabled()) {
-      disconnectEris();
-    } else {
-      shutdown();
-    }
+  stop: async (message) => {
+    try {
+      if (!message) {
+        if (isActivityDisabled()) {
+          disconnectEris();
+        } else {
+          shutdown();
+        }
+        return;
+      }
+      if (!isActivityRunning) {
+        message.reply("**Activity is not running. Use `start` first.**");
+        return;
+      }
 
-    isActivityRunning = false;
-    message.reply(
-      "**Rich Presence stopped for all tokens. Use `start` to restart.**"
-    );
+      if (isActivityDisabled()) {
+        disconnectEris();
+      } else {
+        shutdown();
+      }
+
+      isActivityRunning = false;
+      message.reply(
+        "**Rich Presence stopped for all tokens. Use `start` to restart.**"
+      );
+    } catch (e) {
+      logError("An unexpected error occurred while executing stop command:", e);
+      message.reply(`**An unexpected error occurred: ${e}**`);
+    }
+  },
+
+  restart: async (message) => {
+    try {
+      if (!isActivityRunning) {
+        message.reply("**Activity is not running. Use `start` first.**");
+        return;
+      }
+
+      await commands.stop();
+      await commands.start();
+
+      message.reply("**Activity restarted for all tokens.**");
+    } catch (e) {
+      logError(
+        "An unexpected error occurred while executing restart command:",
+        e
+      );
+      message.reply(`**An unexpected error occurred: ${e}**`);
+    }
+  },
+  "edit-status": (message, args) => commands.editstatus(message, args),
+  editstatus: (message, args) => {
+    try {
+      if (erisMap.size === 0) {
+        message.reply(
+          "**Eris instances are currently shut down. Try again later! You cannot change the status of a rich presence.**"
+        );
+        return;
+      }
+
+      if (args.length === 0) {
+        message.reply("**Usage: `editStatus <status>`**");
+        return;
+      }
+
+      const status = args[0].toLowerCase();
+      const [verified, refined] = verifyStatus(status);
+
+      if (!verified) {
+        message.reply(
+          "**Invalid status. Status should be one of the following: online, dnd, idle, invisible.**"
+        );
+        return;
+      }
+
+      erisMap.forEach((erisInstance, token) => {
+        erisInstance.editStatus(refined, []);
+        logDebug(
+          `Status set to ${refined} for token: ${token.slice(0, 10)}...`
+        );
+      });
+
+      message.reply(`**Status set to ${refined} for each token.**`);
+    } catch (e) {
+      logError(
+        "An unexpected error occurred while executing editStatus command:",
+        e
+      );
+      message.reply(`**An unexpected error occurred: ${e}**`);
+    }
+  },
+
+  ping: (message) => {
+    try {
+      const latency = Math.round(bot.ws.ping);
+      message.reply(`**Pong! Latency: ${latency}ms**`);
+    } catch (e) {
+      logError("An unexpected error occurred while executing ping command:", e);
+      message.reply(`**An unexpected error occurred: ${e}**`);
+    }
   },
 };
 
@@ -301,10 +406,12 @@ bot.on("messageCreate", async (message) => {
   if (message.channel.id !== variables.channelId) return;
   if (message.author.bot) return;
 
-  const command = message.content.toLowerCase();
+  const args = message.content.trim().split(/\s+/);
+  const command = args.shift().toLowerCase();
+
   if (commands[command]) {
     try {
-      await commands[command](message);
+      await commands[command](message, args);
     } catch (error) {
       logError("Command execution error:", error);
     }
@@ -336,8 +443,16 @@ validateEnvVariables();
 
 process.on("SIGINT", () => {
   logInfo("Shutting down...");
-  if (ws) shutdown();
-  if (eris) disconnectEris();
+  wsMap.forEach((token, ws) => {
+    if (ws || ws.readyState === WebSocket.OPEN) {
+      shutdown();
+    }
+  });
+  erisMap.forEach((erisInstance, token) => {
+    if (erisInstance) {
+      disconnectEris();
+    }
+  });
   bot.destroy();
   process.exit(0);
 });
