@@ -1,17 +1,20 @@
-const { Client, GatewayIntentBits } = require("discord.js");
 require("dotenv").config();
 const WebSocket = require("ws");
 const Eris = require("eris");
+
+const { wsMap, erisMap, statusMap, heartbeatIntervals } = require("./state.js");
+const { login, destroy } = require("./bot/controller.js");
 const keep_alive = require("./src/keep_alive.js");
 const {
   logInfo,
   logError,
   validateEnvVariables,
   isStartEnabled,
-  isActivityDisabled,
   isTrue,
   logDebug,
-  verifyStatus,
+  assignGatewayUrl,
+  getVariables,
+  logToken,
 } = require("./src/utilities.js");
 
 if (!isStartEnabled()) {
@@ -19,55 +22,33 @@ if (!isStartEnabled()) {
   process.exit(1);
 }
 
-const GATEWAY_URL = "wss://gateway.discord.gg/?v=9&encoding=json";
+let GATEWAY_URL = assignGatewayUrl();
 let isActivityRunning = false;
-let wsMap = new Map();
-let erisMap = new Map();
-let heartbeatIntervals = new Map();
+let shouldReconnect = false;
 
-const userTokens = (process.env.USER_TOKEN || "")
-  .split(/\s*,\s*/)
-  .filter(Boolean);
+const userTokens = process.env.USER_TOKENS.split(/\s*,\s*/).filter(
+  (token) => token.trim() !== ""
+);
 
 if (!userTokens.length) {
   logError("No user tokens provided.");
   process.exit(1);
 }
 
-const bot = new Client({
-  intents: [
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-    GatewayIntentBits.Guilds,
-  ],
-});
-
-function getVariables() {
-  const variables = {
-    botToken: process.env.BOT_TOKEN,
-    userToken: process.env.USER_TOKEN,
-    channelId: process.env.CHANNEL_ID,
-    largeImageUrl: process.env.LARGE_IMAGE_URL,
-    smallImageUrl: process.env.SMALL_IMAGE_URL,
-    smallText: process.env.SMALL_TEXT,
-    largeText: process.env.LARGE_TEXT,
-    timestamps: process.env.TIMESTAMPS,
-    state: process.env.STATE,
-    details: process.env.DETAILS,
-    type: process.env.TYPE,
-    name: process.env.NAME,
-    status: process.env.STATUS,
-    start: process.env.START,
-    noActivity: process.env.NO_ACTIVITY,
-  };
-  return variables;
+const variables = getVariables();
+if (Number(variables.type) === 4) {
+  logError("Activity type of four is not allowed. Please choose any other.");
+  process.exit(1);
 }
 
-const variables = getVariables();
-
-function structureData() {
+function structureData(token) {
   if (!isStartEnabled) {
     logError("No permissions to start the server...");
+    process.exit(1);
+  }
+
+  if (!token) {
+    logError("No token was provided...");
     process.exit(1);
   }
 
@@ -97,13 +78,38 @@ function structureData() {
     activities: activities,
   };
 
+  // Check if there are any edits on the status map
+  if (statusMap.size > 0) {
+    // Seems like an yes
+    for (const [key, value] of statusMap.entries()) {
+      if (token === key) {
+        data.status = value;
+      }
+    }
+  }
+
   return data;
+}
+
+function updateRichPresence(token) {
+  const ws = wsMap.get(token);
+
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    const data = structureData(token);
+    ws.send(
+      JSON.stringify({
+        op: 3,
+        d: data,
+      })
+    );
+    logInfo(`Rich presence updated for token: ${logToken(token)}...`);
+  }
 }
 
 function setRichPresence(ws, token) {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
-  const data = structureData();
+  const data = structureData(token);
 
   ws.send(
     JSON.stringify({
@@ -112,14 +118,14 @@ function setRichPresence(ws, token) {
     })
   );
 
-  logInfo(`Rich presence successfully sent for token ${token.slice(0, 10)}...`);
+  logInfo(`Rich presence successfully sent for token ${logToken(token)}...`);
 }
 
 function connectUserGateway(token) {
   let ws = new WebSocket(GATEWAY_URL);
 
   ws.on("open", () => {
-    logInfo(`Connected to Discord Gateway for token: ${token.slice(0, 10)}...`);
+    logInfo(`Connected to Discord Gateway for token: ${logToken(token)}...`);
 
     ws.send(
       JSON.stringify({
@@ -147,7 +153,7 @@ function connectUserGateway(token) {
 
       const interval = setInterval(() => {
         ws.send(JSON.stringify({ op: 1, d: null }));
-        logDebug(`Heartbeat sent for token: ${token.slice(0, 10)}...`);
+        logDebug(`Heartbeat sent for token: ${logToken(token)}...`);
       }, heartbeatIntervalMs);
 
       heartbeatIntervals.set(token, interval);
@@ -168,7 +174,7 @@ function connectUserGateway(token) {
       clearInterval(heartbeatIntervals.get(token));
 
     if (shouldReconnect && ![4004, 4010, 4011].includes(code)) {
-      logInfo(`Reconnecting in 5 seconds for token: ${token.slice(0, 10)}...`);
+      logInfo(`Reconnecting in 5 seconds for token: ${logToken(token)}...`);
       setTimeout(() => connectUserGateway(token), 5000);
     } else {
       if (wsMap.has(token)) {
@@ -180,28 +186,79 @@ function connectUserGateway(token) {
   wsMap.set(token, ws);
 
   ws.on("error", (error) => {
-    logError(`WebSocket error for token: ${token.slice(0, 10)}...`, error);
+    logError(`WebSocket error for token: ${logToken(token)}...`, error);
   });
 }
 
 function launchEris(token) {
   try {
-    logInfo(`Launching Eris for token: ${token.slice(0, 10)}...`);
-    const erisInstance = new Eris(token);
-    erisInstance.connect();
-    erisInstance.on("error", (e) =>
-      logError(`Eris runtime error for token: ${token.slice(0, 10)}...`, e)
-    );
-    erisMap.set(token, erisInstance);
-    erisInstance.editStatus(variables.status, []);
-    logInfo(`Successfully launched Eris for token: ${token.slice(0, 10)}...`);
+    logInfo(`Launching Eris for token: ${logToken(token)}...`);
+    if (token.length >= 11) {
+      const erisInstance = new Eris(token);
+      erisInstance.connect();
+      erisInstance.on("error", (e) =>
+        logError(`Eris runtime error for token: ${logToken(token)}...`, e)
+      );
+      erisMap.set(token, erisInstance);
+      erisInstance.editStatus(variables.status, []);
+    } else {
+      const assignedToken = userTokens[token];
+      const erisInstance = new Eris(assignedToken);
+      erisInstance.connect();
+      erisInstance.on("error", (e) =>
+        logError(`Eris runtime error for token: ${logToken(token)}...`, e)
+      );
+      erisMap.set(assignedToken, erisInstance);
+      erisInstance.editStatus(variables.status, []);
+    }
+    isActivityRunning = true;
+    logInfo(`Successfully launched Eris for token: ${logToken(token)}...`);
   } catch (e) {
-    logError(`Failed to launch Eris for token: ${token.slice(0, 10)}.`, e);
+    logError(`Failed to launch Eris for token: ${logToken(token)}.`, e);
   }
 }
 
-function shutdown() {
-  wsMap.forEach((ws, token) => {
+function shutdown(token) {
+  if (!token) {
+    wsMap.forEach((ws, token) => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(
+          JSON.stringify({
+            op: 3,
+            d: {
+              activities: [],
+              since: null,
+              status: "offline",
+              afk: false,
+            },
+          })
+        );
+        ws.send(
+          JSON.stringify({
+            op: 3,
+            d: {
+              status: "offline",
+            },
+          })
+        );
+        shouldReconnect = false;
+
+        logDebug(
+          `Activity cleared before shutting down WebSocket for token: ${token.slice(
+            0,
+            10
+          )}...`
+        );
+        ws.close();
+      }
+    });
+
+    wsMap.clear();
+    heartbeatIntervals.forEach((interval) => clearInterval(interval));
+    heartbeatIntervals.clear();
+    isActivityRunning = false;
+  } else {
+    const ws = wsMap.get(token);
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(
         JSON.stringify({
@@ -223,6 +280,7 @@ function shutdown() {
         })
       );
       shouldReconnect = false;
+
       logDebug(
         `Activity cleared before shutting down WebSocket for token: ${token.slice(
           0,
@@ -231,228 +289,84 @@ function shutdown() {
       );
       ws.close();
     }
-  });
+    wsMap.delete(token);
+    statusMap.delete(token);
+    clearInterval(heartbeatIntervals.get(token));
 
-  wsMap.clear();
-  heartbeatIntervals.forEach((interval) => clearInterval(interval));
-  heartbeatIntervals.clear();
+    if (wsMap.size === 0) isActivityRunning = true;
+  }
 }
 
-function disconnectEris() {
-  erisMap.forEach((erisInstance, token) => {
+function disconnectEris(assignedToken) {
+  if (!assignedToken) {
+    erisMap.forEach((erisInstance, token) => {
+      try {
+        erisInstance.editStatus("offline", []);
+        logInfo(
+          `Clearing activity before disconnecting Eris for token: ${token.slice(
+            0,
+            10
+          )}...`
+        );
+        erisInstance.disconnect();
+        logInfo(
+          `Successfully disconnected Eris for token: ${logToken(token)}...`
+        );
+      } catch (e) {
+        logError(`Failed to disconnect Eris for token: ${logToken(token)}.`, e);
+      }
+    });
+
+    erisMap.clear();
+    isActivityRunning = false;
+  } else {
+    const erisInstance = erisMap.get(assignedToken);
     try {
       erisInstance.editStatus("offline", []);
       logInfo(
-        `Clearing activity before disconnecting Eris for token: ${token.slice(
-          0,
-          10
-        )}...`
+        `Clearing activity before disconnecting Eris for token: ${assignedToken}...`
       );
       erisInstance.disconnect();
-      logInfo(
-        `Successfully disconnected Eris for token: ${token.slice(0, 10)}...`
-      );
+      erisMap.delete(assignedToken);
+      logInfo(`Successfully disconnected Eris for token: ${assignedToken}...`);
     } catch (e) {
-      logError(
-        `Failed to disconnect Eris for token: ${token.slice(0, 10)}.`,
-        e
-      );
+      logError(`Failed to disconnect Eris for token: ${assignedToken}.`, e);
     }
-  });
-
-  erisMap.clear();
+    if (erisMap.size === 0) isActivityRunning = false;
+  }
 }
-const commands = {
-  start: async (message) => {
-    try {
-      if (!message) {
-        if (isActivityDisabled()) {
-          userTokens.forEach((token) => launchEris(token));
-        } else {
-          userTokens.forEach((token) => connectUserGateway(token));
-        }
-        return;
-      }
-      if (isActivityRunning) {
-        message.reply(
-          "**Activity is already running. Use `stop` to restart.**"
-        );
-        return;
-      }
 
-      if (isActivityDisabled()) {
-        userTokens.forEach((token) => launchEris(token));
-      } else {
-        userTokens.forEach((token) => connectUserGateway(token));
-      }
+async function main() {
+  try {
+    await login();
+    validateEnvVariables();
 
-      isActivityRunning = true;
-      message.reply(
-        "**Rich Presence started for all tokens. Use `stop` to stop it.**"
-      );
-    } catch (e) {
-      logError(
-        "An unexpected error occurred while executing start command:",
-        e
-      );
-      message.reply(`**An unexpected error occurred: ${e}**`);
-    }
-  },
-
-  stop: async (message) => {
-    try {
-      if (!message) {
-        if (isActivityDisabled()) {
-          disconnectEris();
-        } else {
+    process.on("SIGINT", () => {
+      logInfo("Shutting down...");
+      wsMap.forEach((token, ws) => {
+        if (ws || ws.readyState === WebSocket.OPEN) {
           shutdown();
         }
-        return;
-      }
-      if (!isActivityRunning) {
-        message.reply("**Activity is not running. Use `start` first.**");
-        return;
-      }
-
-      if (isActivityDisabled()) {
-        disconnectEris();
-      } else {
-        shutdown();
-      }
-
-      isActivityRunning = false;
-      message.reply(
-        "**Rich Presence stopped for all tokens. Use `start` to restart.**"
-      );
-    } catch (e) {
-      logError("An unexpected error occurred while executing stop command:", e);
-      message.reply(`**An unexpected error occurred: ${e}**`);
-    }
-  },
-
-  restart: async (message) => {
-    try {
-      if (!isActivityRunning) {
-        message.reply("**Activity is not running. Use `start` first.**");
-        return;
-      }
-
-      await commands.stop();
-      await commands.start();
-
-      message.reply("**Activity restarted for all tokens.**");
-    } catch (e) {
-      logError(
-        "An unexpected error occurred while executing restart command:",
-        e
-      );
-      message.reply(`**An unexpected error occurred: ${e}**`);
-    }
-  },
-  "edit-status": (message, args) => commands.editstatus(message, args),
-  editstatus: (message, args) => {
-    try {
-      if (erisMap.size === 0) {
-        message.reply(
-          "**Eris instances are currently shut down. Try again later! You cannot change the status of a rich presence.**"
-        );
-        return;
-      }
-
-      if (args.length === 0) {
-        message.reply("**Usage: `editStatus <status>`**");
-        return;
-      }
-
-      const status = args[0].toLowerCase();
-      const [verified, refined] = verifyStatus(status);
-
-      if (!verified) {
-        message.reply(
-          "**Invalid status. Status should be one of the following: online, dnd, idle, invisible.**"
-        );
-        return;
-      }
-
-      erisMap.forEach((erisInstance, token) => {
-        erisInstance.editStatus(refined, []);
-        logDebug(
-          `Status set to ${refined} for token: ${token.slice(0, 10)}...`
-        );
       });
-
-      message.reply(`**Status set to ${refined} for each token.**`);
-    } catch (e) {
-      logError(
-        "An unexpected error occurred while executing editStatus command:",
-        e
-      );
-      message.reply(`**An unexpected error occurred: ${e}**`);
-    }
-  },
-
-  ping: (message) => {
-    try {
-      const latency = Math.round(bot.ws.ping);
-      message.reply(`**Pong! Latency: ${latency}ms**`);
-    } catch (e) {
-      logError("An unexpected error occurred while executing ping command:", e);
-      message.reply(`**An unexpected error occurred: ${e}**`);
-    }
-  },
-};
-
-bot.on("messageCreate", async (message) => {
-  if (message.channel.id !== variables.channelId) return;
-  if (message.author.bot) return;
-
-  const args = message.content.trim().split(/\s+/);
-  const command = args.shift().toLowerCase();
-
-  if (commands[command]) {
-    try {
-      await commands[command](message, args);
-    } catch (error) {
-      logError("Command execution error:", error);
-    }
-  } else {
-    message.reply("**Unknown command.**");
-  }
-});
-
-bot.once("ready", () => {
-  bot.user.setPresence({ status: "invisible" });
-  logInfo("Bot is online and set to invisible.");
-});
-
-bot.on("error", (error) => {
-  logError("Bot runtime error:", error);
-});
-
-(async () => {
-  try {
-    await bot.login(variables.botToken);
-    logInfo("Bot logged in successfully.");
+      erisMap.forEach((erisInstance, token) => {
+        if (erisInstance) {
+          disconnectEris();
+        }
+      });
+      destroy();
+      process.exit(0);
+    });
   } catch (error) {
-    logError("Failed to log in for the bot account:", error);
+    logError("Fatal error during bot startup:", error);
     process.exit(1);
   }
-})();
+}
 
-validateEnvVariables();
-
-process.on("SIGINT", () => {
-  logInfo("Shutting down...");
-  wsMap.forEach((token, ws) => {
-    if (ws || ws.readyState === WebSocket.OPEN) {
-      shutdown();
-    }
-  });
-  erisMap.forEach((erisInstance, token) => {
-    if (erisInstance) {
-      disconnectEris();
-    }
-  });
-  bot.destroy();
-  process.exit(0);
-});
+main();
+module.exports = {
+  disconnectEris,
+  updateRichPresence,
+  shutdown,
+  launchEris,
+  connectUserGateway,
+};

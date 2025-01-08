@@ -1,0 +1,195 @@
+{
+  "USER_TOKENS": {
+    "description": "Provide one or more user tokens to keep alive, separated by commas.",
+    "required": true,
+    "type": "string",
+    "minLength": 1,
+    "examples": {
+      "USER_TOKENS": "OT450****,OT2****, OT25****",
+      "USER_TOKENS": "OT450****"
+    },
+    "possible_errors": {
+      "NO_TOKEN": "No tokens provided.",
+      "TOKEN_INVALID": "One or more of the tokens provided are invalid or inaccessible."
+    }
+  },
+  "BOT_TOKEN": {
+    "description": "Provide the bot token used to control the Rich Presence panel.",
+    "required": true,
+    "type": "string",
+    "minLength": 1,
+    "examples": {
+      "BOT_TOKEN": "MT54****"
+    },
+    "possible_errors": {
+      "NO_TOKEN": "No bot token provided.",
+      "TOKEN_INVALID": "The bot token provided is invalid or inaccessible."
+    }
+  },
+  "PREFIX": {
+    "description": "Specify the bot prefix for commands.",
+    "required": false,
+    "type": "string",
+    "default": "!",
+    "examples": {
+      "PREFIX": "?"
+    },
+    "possible_errors": {
+      "INVALID_PREFIX": "The prefix provided is invalid."
+    }
+  },
+  "LARGE_IMAGE_URL": {
+    "description": "URL for the large image displayed in the Rich Presence.",
+    "required": false,
+    "type": "string",
+    "default": null,
+    "examples": {
+      "LARGE_IMAGE_URL": "mp:https://example.com/images/hypixel.png"
+    },
+    "possible_errors": {
+      "INVALID_IMAGE": "The large image URL provided is invalid."
+    },
+    "note": "Use 'mp:' for MEDIA_PROXY sources. Omit 'mp:' if the source is not a CDN or media server."
+  },
+  "SMALL_IMAGE_URL": {
+    "description": "URL for the small image displayed in the Rich Presence.",
+    "required": false,
+    "type": "string",
+    "default": null,
+    "examples": {
+      "SMALL_IMAGE_URL": "mp:https://example.com/images/minecraft.png"
+    },
+    "possible_errors": {
+      "INVALID_IMAGE": "The small image URL provided is invalid."
+    },
+    "note": "Use 'mp:' for MEDIA_PROXY sources. Omit 'mp:' if the source is not a CDN or media server."
+  },
+  "LARGE_TEXT": {
+    "description": "Text to display over the large image in the Rich Presence.",
+    "required": false,
+    "type": "string",
+    "default": null,
+    "examples": {
+      "LARGE_TEXT": "Hypixel"
+    }
+  },
+  "SMALL_TEXT": {
+    "description": "Text to display over the small image in the Rich Presence.",
+    "required": false,
+    "type": "string",
+    "default": null,
+    "examples": {
+      "SMALL_TEXT": "Minecraft"
+    }
+  },
+  "TIMESTAMPS": {
+    "description": "Enable start timestamps in the Rich Presence.",
+    "required": false,
+    "type": "boolean",
+    "default": false,
+    "examples": {
+      "TIMESTAMPS": true
+    },
+    "possible_errors": {
+      "INVALID_BOOLEAN": "The value provided must be true or false."
+    }
+  },
+  "STATE": {
+    "description": "The state message to display in the Rich Presence.",
+    "required": false,
+    "type": "string",
+    "default": null,
+    "examples": {
+      "STATE": "In Game!"
+    }
+  },
+  "DETAILS": {
+    "description": "The detail message to display in the Rich Presence.",
+    "required": false,
+    "type": "string",
+    "default": null,
+    "examples": {
+      "DETAILS": "Playing Sumo."
+    }
+  },
+  "TYPE": {
+    "description": "The type of activity to display.",
+    "required": false,
+    "type": "integer",
+    "default": 0,
+    "possible_values": {
+      "0": "Playing",
+      "1": "Streaming",
+      "2": "Listening",
+      "3": "Watching",
+      // Activity type 4 is not allowed
+      "5": "Competing"
+    },
+    "examples": {
+      "TYPE": 0
+    },
+    "possible_errors": {
+      "INVALID_TYPE": "The activity type provided is invalid.",
+    },
+    "note": "Activity type '4' (Custom) is not allowed."
+  },
+  "NAME": {
+    "description": "The name of the Rich Presence.",
+    "required": false,
+    "type": "string",
+    "default": null,
+    "examples": {
+      "NAME": "Minecraft"
+    }
+  },
+  "STATUS": {
+    "description": "Set the bot's online status.",
+    "required": false,
+    "type": "string",
+    "default": "online",
+    "possible_values": {
+      "online": "Online",
+      "idle": "Idle",
+      "dnd": "Do Not Disturb",
+      "invisible": "Invisible"
+    },
+    "examples": {
+      "STATUS": "online"
+    },
+    "possible_errors": {
+      "INVALID_STATUS": "The status value provided is invalid."
+    }
+  },
+  "START": {
+    "description": "Toggle whether to start the Rich Presence. Useful for debugging.",
+    "required": false,
+    "type": "boolean",
+    "default": true,
+    "examples": {
+      "START": false
+    },
+    "note": "If START is false, the code will not run."
+  },
+  "NO_ACTIVITY": {
+    "description": "Start an Eris Cluster instance without Rich Presence, keeping the user online.",
+    "required": false,
+    "type": "boolean",
+    "default": false,
+    "examples": {
+      "NO_ACTIVITY": true
+    }
+  },
+  "SERVER_ID": {
+    "description": "Provide the ID of the server in which the bot would respond to commands.",
+    "required": true,
+    "type": "integer",
+    "examples": {
+      "SERVER_ID": "40001",
+      "SERVER_ID": "1234"
+    },
+    "possible_errors": {
+      "INVALID_SERVER": "The emoji provided is either incorrect, or unavailable. Ensure it exists and the bot has access to the server."
+    },
+    "note": "The bot must have access to the server provided, and at least one channel in which it can send messages."
+  }
+}
