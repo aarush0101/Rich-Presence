@@ -1,6 +1,7 @@
 const { erisMap, wsMap } = require("../../state.js");
 const { startEris, startWs } = require("./start.js");
 const { disconnectEris, shutdown } = require("../../index.js");
+const { logError, logDebug } = require("../../src/utilities.js");
 
 const userTokens = process.env.USER_TOKENS.split(/\s*,\s*/).filter(
   (token) => token.trim() !== ""
