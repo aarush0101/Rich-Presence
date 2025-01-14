@@ -1,11 +1,11 @@
 const { erisMap, wsMap } = require("../../state.js");
 
-let {
-  isActivityRunning,
-  launchEris,
-  connectUserGateway,
-} = require("../../index.js");
-const { logError, logToken, isActivityDisabled } = require("../../src/utilities.js");
+let { launchEris, connectUserGateway } = require("../../index.js");
+const {
+  logError,
+  logToken,
+  isActivityDisabled,
+} = require("../../src/utilities.js");
 
 const userTokens = process.env.USER_TOKENS.split(/\s*,\s*/).filter(
   (token) => token.trim() !== ""
@@ -22,13 +22,6 @@ function start(message, args) {
     } else {
       idealMap = wsMap;
       mapType = "ws";
-    }
-
-    if (isActivityRunning && args.length === 0) {
-      message.reply(
-        "**It seems like activity is already running. You may specify one token to start, or stop all of them and start again.**"
-      );
-      return;
     }
 
     let token = args[0];

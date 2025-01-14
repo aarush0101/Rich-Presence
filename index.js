@@ -23,7 +23,6 @@ if (!isStartEnabled()) {
 }
 
 let GATEWAY_URL = assignGatewayUrl();
-let isActivityRunning = false;
 let shouldReconnect = false;
 
 const userTokens = process.env.USER_TOKENS.split(/\s*,\s*/).filter(
