@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "run": "node index.js"
+    "start": "node index.js",
+    "build": "node ./src/keep_alive.js"
   },
   "keywords": [],
   "author": "",
