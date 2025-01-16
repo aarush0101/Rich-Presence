@@ -11,7 +11,7 @@ function status(message, args) {
   try {
     if (erisMap.size === 0 && wsMap.size === 0) {
       message.reply(
-        "**Eris/Ws instances are currently off. Try again later! By the way, you cannot change the status of a rich presence.**"
+        "**Eris/Ws instances are currently off. Try again later!**"
       );
       return;
     }
