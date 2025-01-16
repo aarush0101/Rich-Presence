@@ -1,4 +1,14 @@
 {
-  "installCommand": "npm i",
-  "trailingSlash": false
-}
+    "version": 2,
+    "builds": [
+      {
+        "src": "index.js",
+        "use": "@vercel/node"
+      }
+    ],
+    "routes": [
+      { "src": "/(.*)", "dest": "/" }
+    ],
+    "installCommand": "npm i"
+  }
+  
