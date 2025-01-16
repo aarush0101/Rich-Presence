@@ -15,6 +15,7 @@ const {
   assignGatewayUrl,
   getVariables,
   logToken,
+  isActivityDisabled
 } = require("./src/utilities.js");
 
 if (!isStartEnabled()) {
@@ -35,7 +36,7 @@ if (!userTokens.length) {
 }
 
 const variables = getVariables();
-if (Number(variables.type) === 4) {
+if (!isActivityDisabled() && Number(variables.type) === 4) {
   logError("Activity type of four is not allowed. Please choose any other.");
   process.exit(1);
 }

@@ -37,7 +37,7 @@ function validateEnvVariables() {
     }
   });
 
-  if (isNaN(Number(process.env.TYPE))) {
+  if (!isActivityDisabled && isNaN(Number(process.env.TYPE))) {
     logError("Invalid TYPE in .env file. Must be a number.");
     process.exit(1);
   }
