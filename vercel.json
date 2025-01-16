@@ -2,6 +2,5 @@
   "buildCommand": "npm run build",
   "framework": "other",
   "installCommand": "npm i",
-  "trailingSlash": false,
-  "outputDirector": "."
+  "trailingSlash": false
 }
