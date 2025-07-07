@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Ask questions
+    about: Ask questions through discussions about the project.
+    url: https://github.com/aarush0101/Rich-Presence/discussions
+  - name: Zendo Website
+    about: Visit Zendo's official site, whose team is the owner of this repository.
+    url: https://zendo.asia/
