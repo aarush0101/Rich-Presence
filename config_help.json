@@ -13,6 +13,19 @@
       "TOKEN_INVALID": "One or more of the tokens provided are invalid or inaccessible."
     }
   },
+  "START_SERVER": {
+    "description": "Set to true to start the server for the Rich Presence keep alive mechanism.",
+    "required": false,
+    "type": "boolean",
+    "default": false,
+    "examples": {
+      "START_SERVER": true
+    },
+    "possible_errors": {
+      "INVALID_BOOLEAN": "The value provided must be true or false."
+    },
+    "note": "If START_SERVER is true, the server will start and listen for requests."
+  },
   "BOT_TOKEN": {
     "description": "Provide the bot token used to control the Rich Presence panel.",
     "required": true,
@@ -129,7 +142,7 @@
       "TYPE": 0
     },
     "possible_errors": {
-      "INVALID_TYPE": "The activity type provided is invalid.",
+      "INVALID_TYPE": "The activity type provided is invalid."
     },
     "note": "Activity type '4' (Custom) is not allowed."
   },

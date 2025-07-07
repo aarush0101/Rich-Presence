@@ -1,25 +1,51 @@
+/**
+ * bot/commands/restart.js
+ * -----------------------
+ *
+ * This module implements the restart command which restarts the bot instances.
+ *
+ * @license MIT - see LICENSE for more details
+ * @copyright © 2025–present AARUSH MASTER - see package.json for more details
+ */
+
 const { erisMap, wsMap } = require("../../state.js");
 const { startEris, startWs } = require("./start.js");
 const { disconnectEris, shutdown } = require("../../index.js");
-const { logError, isActivityDisabled } = require("../../src/utilities.js");
+const { logError, isActivityDisabled, logToken } = require("../../src/utilities.js");
 
-const userTokens = process.env.USER_TOKENS.split(/\s*,\s*/).filter(
-  (token) => token.trim() !== ""
-);
+/**
+ * Array of user tokens extracted from environment variables.
+ * Filters out empty tokens and trims whitespace.
+ *
+ * @type {string[]}
+ */
+const userTokens = process.env.USER_TOKENS.split(/\s*,\s*/).filter((token) => token.trim() !== "");
 
+/**
+ * Restarts bot instances based on provided arguments.
+ *
+ * This function handles restarting either all bot instances or a specific instance
+ * identified by its token index. It first shuts down the existing instance(s) and
+ * then starts them again. It supports both Eris and WebSocket instances based
+ * on the application configuration.
+ *
+ * @param {import('discord.js').Message} message - The Discord message object that triggered the command
+ * @param {string[]} args - Command arguments, where args[0] can specify a token index or be empty to restart all
+ * @returns {void}
+ * @throws {Error} Logs any errors that occur during execution
+ */
 function restart(message, args) {
   try {
+    // Check if there are any active instances to restart
     if (erisMap.size === 0 && wsMap.size === 0) {
-      message.reply(
-        "**Eris/Ws instances are currently shut down. Try again later!.**"
-      );
+      message.reply("**Eris/Ws instances are currently shut down. Try again later!.**");
       return;
     }
 
     let idealMap;
     let mapType;
 
-
+    // Determine which map type to use based on configuration
     if (isActivityDisabled()) {
       idealMap = erisMap;
       mapType = "eris";
@@ -35,6 +61,7 @@ function restart(message, args) {
 
     if (token !== -1) token = parseInt(token) - 1; // Subtract 1 for zero-indexing
 
+    // Validate token index
     if ((token < 0 && token !== -1) || token >= userTokens.length) {
       message.reply(
         `**Invalid token number. Please provide a valid token number. You only have ${userTokens.length} tokens available in your instance.**`
@@ -42,13 +69,12 @@ function restart(message, args) {
       return;
     }
 
+    // Process restarting instances based on token value
     if (token === -1) {
       if (mapType === "eris") {
         disconnectEris();
         startEris();
-        message.reply(
-          `**Eris instances for all tokens were requested to stop and start again.**`
-        );
+        message.reply(`**Eris instances for all tokens were requested to stop and start again.**`);
       } else {
         shutdown();
         startWs();
@@ -61,13 +87,13 @@ function restart(message, args) {
         disconnectEris(token);
         startEris(token);
         message.reply(
-          `**Eris instances stopped for token token and asked to start again.**`
+          `**Eris instances stopped for token ${logToken(token)} and asked to start again.**`
         );
       } else {
         shutdown(token);
         startWs(token);
         message.reply(
-          `**Rich Presence stopped for token token and asked to start again.**`
+          `**Rich Presence stopped for token ${logToken(token)} and asked to start again.**`
         );
       }
     }
@@ -75,11 +101,21 @@ function restart(message, args) {
     logError(`An error occurred while stopping the instance: ${e}`);
 
     message.reply(
-      `**An error occurred while changing the status. This has been logged as well. Exception: ${e}**`
+      `**An error occurred while restarting. This has been logged as well. Exception: ${e}**`
     );
   }
 }
 
+/**
+ * Command export configuration object.
+ * This object conforms to the command structure expected by the bot controller.
+ *
+ * @type {Object}
+ * @property {string} name - Primary command name
+ * @property {string[]} alias - Alternative names/aliases for the command
+ * @property {string} description - Brief description of what the command does
+ * @property {Function} execute - The function that executes when command is invoked
+ */
 module.exports = {
   name: "restart",
   alias: ["restart-token", "restart_token"],
