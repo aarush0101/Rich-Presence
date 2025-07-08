@@ -182,18 +182,15 @@ docker stop rich-presence
 ### Common Issues
 
 1. **Invalid Token Error**
-
    - Ensure your user tokens and bot token are valid and properly formatted
    - Check if the tokens have the necessary permissions
 
 2. **Connection Errors**
-
    - Check your internet connection
    - Verify the Discord Gateway URL in settings.conf
    - Ensure you're not being rate-limited by Discord
 
 3. **Bot Not Responding**
-
    - Verify the bot is online
    - Check if the bot has the necessary permissions
    - Ensure the prefix is correctly set in the .env file
