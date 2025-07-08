@@ -1,3 +1,16 @@
+"""
+resources/compressor.py
+-----------------------
+
+Implements a high level config extractor to extract config from
+compressor.settings.txt and replace placeholders with actual values.
+It also reads README.md and CHANGELOG.md files to include their contents
+in the final configuration for automatic releases.
+
+:license: MIT - see LICENSE for more details
+:copyright: (c) 2025-present AARUSH MASTER
+"""
+
 import argparse
 import re
 from pathlib import Path

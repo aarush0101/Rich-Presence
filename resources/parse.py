@@ -1,3 +1,15 @@
+"""
+resources/prase.py
+------------------
+
+Implements a script to parse a JSON schema file and extract
+release information such as title, description, and tag.
+It encodes the description in base64 for use in GitHub Actions.
+
+:license: MIT - see LICENSE for more details
+:copyright: (c) 2025-present AARUSH MASTER
+"""
+
 import base64
 import orjson
 import os
