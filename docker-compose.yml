@@ -1,0 +1,20 @@
+version: "3.8"  
+
+services:
+  rich-presence:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rich-presence
+    ports:       
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+    restart: unless-stopped
+    networks:
+      - rich-presence-network
+
+networks:
+  rich-presence-network:
+    driver: bridge
