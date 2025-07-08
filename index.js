@@ -14,7 +14,7 @@ const Eris = require("eris");
 
 const { wsMap, erisMap, statusMap, heartbeatIntervals } = require("./state.js");
 const { login, destroy } = require("./bot/controller.js");
-const { keep_alive } = require("./src/keep_alive.js");
+const keep_alive = require("./src/keep_alive.js");
 const {
   logInfo,
   logError,
@@ -24,8 +24,8 @@ const {
   logDebug,
   assignGatewayUrl,
   getVariables,
-  logToken,
   isServerEnabled,
+  logToken,
   isActivityDisabled,
 } = require("./src/utilities.js");
 
@@ -34,12 +34,10 @@ if (!isStartEnabled()) {
   process.exit(1);
 }
 
-const GATEWAY_URL = assignGatewayUrl();
+let GATEWAY_URL = assignGatewayUrl();
 let shouldReconnect = false;
 
-const userTokens = process.env.USER_TOKENS
-  ? process.env.USER_TOKENS.split(/\s*,\s*/).filter(Boolean)
-  : [];
+const userTokens = process.env.USER_TOKENS.split(/\s*,\s*/).filter((token) => token.trim() !== "");
 
 if (!userTokens.length) {
   logError("No user tokens provided.");
@@ -53,24 +51,22 @@ if (!isActivityDisabled() && Number(variables.type) === 4) {
 }
 
 /**
- * Creates a structured data object for Discord rich presence.
+ * Creates the structured data object for Discord rich presence.
  *
- * This function builds the Discord presence payload with activity information
- * including name, type, details, state, and assets. It validates permissions
- * and token before constructing the data.
+ * This function generates a properly formatted object to be sent to Discord's API
+ * for setting a user's rich presence. It includes activity details, status,
+ * and assets like images and text.
  *
- * @param {string} token - The Discord user authentication token
- * @returns {Object} The structured data object for Discord rich presence
- * @throws {Error} Will exit process if permissions aren't granted or token is missing
- *
- * @example
- * const data = structureData('USER_TOKEN');
+ * @param {string} token - The Discord user token to structure data for
+ * @returns {Object} The structured data object for rich presence
+ * @throws Will exit process if no token is provided or start is not enabled
  */
 function structureData(token) {
-  if (!isStartEnabled()) {
+  if (!isStartEnabled) {
     logError("No permissions to start the server...");
     process.exit(1);
   }
+
   if (!token) {
     logError("No token was provided...");
     process.exit(1);
@@ -88,110 +84,101 @@ function structureData(token) {
         small_image: variables.smallImageUrl,
         small_text: variables.smallText,
       },
-      ...(isTrue("TIMESTAMPS") && { timestamps: { start: Date.now() } }),
     },
   ];
 
-  let status = variables.status;
-  if (statusMap.has(token)) status = statusMap.get(token);
+  if (isTrue("TIMESTAMPS")) {
+    activities[0].timestamps = { start: Date.now() };
+  }
 
-  return {
+  const data = {
     since: Date.now(),
-    status,
+    status: variables.status,
     afk: false,
-    activities,
+    activities: activities,
   };
+
+  // Check if there are any edits on the status map
+  if (statusMap.size > 0) {
+    // Seems like an yes
+    for (const [key, value] of statusMap.entries()) {
+      if (token === key) {
+        data.status = value;
+      }
+    }
+  }
+
+  return data;
 }
 
 /**
- * Sends rich presence data through the WebSocket connection.
+ * Updates the rich presence for a specific user token.
  *
- * This function sends a rich presence update (opcode 3) to Discord
- * through the provided WebSocket connection. It only sends if the
- * WebSocket connection is open.
+ * Sends an updated rich presence payload to Discord via the WebSocket connection
+ * for the specified token. Only sends if the WebSocket is in an OPEN state.
  *
- * @param {WebSocket} ws - The WebSocket connection to Discord Gateway
- * @param {string} token - The Discord user authentication token
- * @param {Object|null} msgData - Optional custom presence data to send, otherwise generated from structureData
- * @returns {void}
- *
- * @example
- * sendRichPresence(wsConnection, 'USER_TOKEN');
- * sendRichPresence(wsConnection, 'USER_TOKEN', customData);
- */
-function sendRichPresence(ws, token, msgData = null) {
-  if (!ws || ws.readyState !== WebSocket.OPEN) return;
-  const data = msgData || structureData(token);
-  ws.send(JSON.stringify({ op: 3, d: data }));
-}
-
-/**
- * Updates rich presence for a specified token.
- *
- * This function retrieves the WebSocket connection for the specified token
- * and sends an updated rich presence if the connection is open.
- *
- * @param {string} token - The Discord user authentication token
- * @returns {void}
- *
- * @example
- * updateRichPresence('USER_TOKEN');
+ * @param {string} token - The Discord user token to update rich presence for
  */
 function updateRichPresence(token) {
   const ws = wsMap.get(token);
+
   if (ws && ws.readyState === WebSocket.OPEN) {
-    sendRichPresence(ws, token);
+    const data = structureData(token);
+    ws.send(
+      JSON.stringify({
+        op: 3,
+        d: data,
+      })
+    );
     logInfo(`Rich presence updated for token: ${logToken(token)}...`);
   }
 }
 
 /**
- * Sets and logs rich presence for a token.
+ * Sets the initial rich presence for a user.
  *
- * This function sends the rich presence data and logs the successful operation.
- * Used primarily after connecting to the Discord Gateway.
+ * This function sends the initial rich presence data to Discord after a successful
+ * connection. It first checks if the WebSocket connection is valid and open.
  *
- * @param {WebSocket} ws - The WebSocket connection to Discord Gateway
- * @param {string} token - The Discord user authentication token
- * @returns {void}
- *
- * @example
- * setRichPresence(wsConnection, 'USER_TOKEN');
+ * @param {WebSocket} ws - The WebSocket connection to use
+ * @param {string} token - The Discord user token to set rich presence for
+ * @returns {void} Returns early if the WebSocket is not valid or open
  */
 function setRichPresence(ws, token) {
-  sendRichPresence(ws, token);
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+  const data = structureData(token);
+
+  ws.send(
+    JSON.stringify({
+      op: 3,
+      d: data,
+    })
+  );
+
   logInfo(`Rich presence successfully sent for token ${logToken(token)}...`);
 }
 
 /**
- * Establishes a WebSocket connection to the Discord Gateway for a user token.
+ * Establishes a connection to the Discord Gateway for a user token.
  *
- * This function connects to Discord's Gateway, authenticates with the provided token,
- * sets up heartbeat intervals to maintain the connection, and handles various WebSocket events.
+ * Sets up a WebSocket connection to Discord's gateway, handles authentication,
+ * message events, heartbeat intervals, reconnection logic, and error handling.
+ * Adds the connection to the wsMap for tracking.
  *
- * @param {string} token - The Discord user authentication token
- * @returns {void}
- *
- * @listens WebSocket#open - Sends the identify payload when connection is established
- * @listens WebSocket#message - Handles incoming gateway events, particularly the HELLO event (op 10)
- * @listens WebSocket#close - Handles disconnection, implementing reconnect logic for appropriate close codes
- * @listens WebSocket#error - Logs WebSocket errors
- *
- * @throws {Error} May throw errors from WebSocket operations
- *
- * @example
- * connectUserGateway('USER_TOKEN');
+ * @param {string} token - The Discord user token to connect with
  */
 function connectUserGateway(token) {
-  const ws = new WebSocket(GATEWAY_URL);
+  let ws = new WebSocket(GATEWAY_URL);
 
   ws.on("open", () => {
     logInfo(`Connected to Discord Gateway for token: ${logToken(token)}...`);
+
     ws.send(
       JSON.stringify({
         op: 2,
         d: {
-          token,
+          token: token,
           properties: {
             os: "Windows",
             browser: "Chrome",
@@ -204,65 +191,80 @@ function connectUserGateway(token) {
 
   ws.on("message", (data) => {
     const payload = JSON.parse(data);
+
     if (payload.op === 10) {
       const heartbeatIntervalMs = payload.d.heartbeat_interval;
+
       if (heartbeatIntervals.has(token)) clearInterval(heartbeatIntervals.get(token));
+
       const interval = setInterval(() => {
         ws.send(JSON.stringify({ op: 1, d: null }));
         logDebug(`Heartbeat sent for token: ${logToken(token)}...`);
       }, heartbeatIntervalMs);
+
       heartbeatIntervals.set(token, interval);
+
       setTimeout(() => setRichPresence(ws, token), 1000);
     }
   });
 
   ws.on("close", (code, reason) => {
     logError(
-      `Disconnected from Discord Gateway for token: ${token.slice(0, 10)}. Code: ${code}, Reason: ${reason || "No reason provided"}`
+      `Disconnected from Discord Gateway for token: ${token.slice(
+        0,
+        10
+      )}. Code: ${code}, Reason: ${reason || "No reason provided"}`
     );
+
     if (heartbeatIntervals.has(token)) clearInterval(heartbeatIntervals.get(token));
+
     if (shouldReconnect && ![4004, 4010, 4011].includes(code)) {
       logInfo(`Reconnecting in 5 seconds for token: ${logToken(token)}...`);
       setTimeout(() => connectUserGateway(token), 5000);
     } else {
-      wsMap.delete(token);
+      if (wsMap.has(token)) {
+        wsMap.delete(token);
+      }
     }
   });
+
+  wsMap.set(token, ws);
 
   ws.on("error", (error) => {
     logError(`WebSocket error for token: ${logToken(token)}...`, error);
   });
-
-  wsMap.set(token, ws);
 }
 
 /**
- * Initializes an Eris client with the specified token.
+ * Initializes and connects an Eris client for a Discord user token.
  *
- * This function creates an Eris client instance, connects to Discord,
- * sets up error handling, and sets the initial status. It stores the
- * instance in the erisMap for later reference.
+ * Creates an Eris client instance for the specified token, connects it to Discord,
+ * sets up error handling, and updates the status. Handles both direct tokens and
+ * token indexes.
  *
- * @param {string|number} token - The Discord user authentication token or index in userTokens array
- * @returns {void}
- * @throws {Error} Logs any errors that occur during initialization
- *
- * @example
- * launchEris('USER_TOKEN');
- * launchEris(0); // Use first token in userTokens array
+ * @param {string|number} token - Either a Discord user token or an index in the userTokens array
  */
 function launchEris(token) {
   try {
     logInfo(`Launching Eris for token: ${logToken(token)}...`);
-    const assignedToken = token.length >= 11 ? token : userTokens[token];
-    const erisInstance = new Eris(assignedToken);
-    erisInstance.connect();
-    erisInstance.on("error", (e) =>
-      logError(`Eris runtime error for token: ${logToken(token)}...`, e)
-    );
-    erisMap.set(assignedToken, erisInstance);
-    erisInstance.editStatus(variables.status, []);
-    isActivityRunning = true;
+    if (token.length >= 11) {
+      const erisInstance = new Eris(token);
+      erisInstance.connect();
+      erisInstance.on("error", (e) =>
+        logError(`Eris runtime error for token: ${logToken(token)}...`, e)
+      );
+      erisMap.set(token, erisInstance);
+      erisInstance.editStatus(variables.status, []);
+    } else {
+      const assignedToken = userTokens[token];
+      const erisInstance = new Eris(assignedToken);
+      erisInstance.connect();
+      erisInstance.on("error", (e) =>
+        logError(`Eris runtime error for token: ${logToken(token)}...`, e)
+      );
+      erisMap.set(assignedToken, erisInstance);
+      erisInstance.editStatus(variables.status, []);
+    }
     logInfo(`Successfully launched Eris for token: ${logToken(token)}...`);
   } catch (e) {
     logError(`Failed to launch Eris for token: ${logToken(token)}.`, e);
@@ -270,137 +272,153 @@ function launchEris(token) {
 }
 
 /**
- * Clears activity status and sets user as offline before closing connection.
+ * Shuts down WebSocket connections and clears user presence.
  *
- * This function sends two presence updates to clear activity and set status to offline,
- * then disables reconnection and closes the WebSocket connection.
+ * If a token is provided, only that connection will be shut down.
+ * Otherwise, all connections will be terminated. Before closing,
+ * it clears the user's rich presence by setting activities to empty
+ * and status to offline.
  *
- * @param {WebSocket} ws - The WebSocket connection to Discord Gateway
- * @param {string} token - The Discord user authentication token
- * @returns {void}
- *
- * @example
- * clearActivityAndSendOffline(wsConnection, 'USER_TOKEN');
- */
-function clearActivityAndSendOffline(ws, token) {
-  sendRichPresence(ws, token, {
-    activities: [],
-    since: null,
-    status: "offline",
-    afk: false,
-  });
-  sendRichPresence(ws, token, { status: "offline" });
-  shouldReconnect = false;
-  logDebug(`Activity cleared before shutting down WebSocket for token: ${token.slice(0, 10)}...`);
-  ws.close();
-}
-
-/**
- * Shuts down WebSocket connections and clears activities.
- *
- * If a token is provided, it only shuts down the connection for that token.
- * Otherwise, it shuts down all active connections and clears all resources.
- *
- * @param {string} [token] - Optional Discord user token to shut down
- * @returns {void}
- *
- * @example
- * shutdown(); // Shutdown all connections
- * shutdown('USER_TOKEN'); // Shutdown specific connection
+ * @param {string} [token] - Optional specific Discord user token to shut down
  */
 function shutdown(token) {
   if (!token) {
-    wsMap.forEach((ws, tkn) => {
+    wsMap.forEach((ws, token) => {
       if (ws && ws.readyState === WebSocket.OPEN) {
-        clearActivityAndSendOffline(ws, tkn);
+        ws.send(
+          JSON.stringify({
+            op: 3,
+            d: {
+              activities: [],
+              since: null,
+              status: "offline",
+              afk: false,
+            },
+          })
+        );
+        ws.send(
+          JSON.stringify({
+            op: 3,
+            d: {
+              status: "offline",
+            },
+          })
+        );
+        shouldReconnect = false;
+
+        logDebug(
+          `Activity cleared before shutting down WebSocket for token: ${token.slice(0, 10)}...`
+        );
+        ws.close();
       }
     });
+
     wsMap.clear();
-    heartbeatIntervals.forEach(clearInterval);
+    heartbeatIntervals.forEach((interval) => clearInterval(interval));
     heartbeatIntervals.clear();
-    isActivityRunning = false;
   } else {
     const ws = wsMap.get(token);
     if (ws && ws.readyState === WebSocket.OPEN) {
-      clearActivityAndSendOffline(ws, token);
+      ws.send(
+        JSON.stringify({
+          op: 3,
+          d: {
+            activities: [],
+            since: null,
+            status: "offline",
+            afk: false,
+          },
+        })
+      );
+      ws.send(
+        JSON.stringify({
+          op: 3,
+          d: {
+            status: "offline",
+          },
+        })
+      );
+      shouldReconnect = false;
+
+      logDebug(
+        `Activity cleared before shutting down WebSocket for token: ${token.slice(0, 10)}...`
+      );
+      ws.close();
     }
     wsMap.delete(token);
     statusMap.delete(token);
     clearInterval(heartbeatIntervals.get(token));
-    if (wsMap.size === 0) isActivityRunning = false;
   }
 }
 
 /**
- * Disconnects Eris client instances.
+ * Disconnects Eris client instances and clears their status.
  *
- * If a token is provided, it disconnects only that specific instance.
- * Otherwise, it disconnects all Eris instances and clears the map.
+ * If a token is provided, only that Eris instance will be disconnected.
+ * Otherwise, all instances will be disconnected. Before disconnecting,
+ * it sets the status to offline and clears activities.
  *
- * @param {string} [assignedToken] - Optional token to disconnect
- * @returns {void}
- *
- * @example
- * disconnectEris(); // Disconnect all instances
- * disconnectEris('USER_TOKEN'); // Disconnect specific instance
+ * @param {string} [assignedToken] - Optional specific Discord user token to disconnect
  */
 function disconnectEris(assignedToken) {
-  /**
-   * Helper function to disconnect a single Eris instance.
-   *
-   * @param {Eris} erisInstance - The Eris client instance
-   * @param {string} token - The token associated with the instance
-   * @returns {void}
-   * @private
-   */
-  function disconnectInstance(erisInstance, token) {
-    try {
-      erisInstance.editStatus("offline", []);
-      logInfo(`Clearing activity before disconnecting Eris for token: ${token.slice(0, 10)}...`);
-      erisInstance.disconnect();
-      logInfo(`Successfully disconnected Eris for token: ${logToken(token)}...`);
-    } catch (e) {
-      logError(`Failed to disconnect Eris for token: ${logToken(token)}.`, e);
-    }
-  }
-
   if (!assignedToken) {
-    erisMap.forEach(disconnectInstance);
+    erisMap.forEach((erisInstance, token) => {
+      try {
+        erisInstance.editStatus("offline", []);
+        logInfo(`Clearing activity before disconnecting Eris for token: ${token.slice(0, 10)}...`);
+        erisInstance.disconnect();
+        logInfo(`Successfully disconnected Eris for token: ${logToken(token)}...`);
+      } catch (e) {
+        logError(`Failed to disconnect Eris for token: ${logToken(token)}.`, e);
+      }
+    });
+
     erisMap.clear();
-    isActivityRunning = false;
   } else {
     const erisInstance = erisMap.get(assignedToken);
-    if (erisInstance) {
-      disconnectInstance(erisInstance, assignedToken);
+    try {
+      erisInstance.editStatus("offline", []);
+      logInfo(`Clearing activity before disconnecting Eris for token: ${assignedToken}...`);
+      erisInstance.disconnect();
       erisMap.delete(assignedToken);
+      logInfo(`Successfully disconnected Eris for token: ${assignedToken}...`);
+    } catch (e) {
+      logError(`Failed to disconnect Eris for token: ${assignedToken}.`, e);
     }
-    if (erisMap.size === 0) isActivityRunning = false;
   }
 }
 
 /**
  * Main application entry point.
  *
- * Initializes the application by logging in the bot controller,
- * validating environment variables, and setting up a SIGINT handler
- * for graceful shutdown.
+ * Initializes the application by logging in, validating environment variables,
+ * starting the server if enabled, and setting up clean shutdown handlers.
  *
+ * @async
  * @returns {Promise<void>}
- * @throws {Error} Logs and exits if fatal errors occur during startup
+ * @throws Will exit the process if a fatal error occurs
  */
 async function main() {
   try {
-    if (isServerEnabled()) {
-      logInfo("Starting server...");
-      keep_alive();
-    }
     await login();
     validateEnvVariables();
+    if (isServerEnabled()) {
+      logInfo("Server is enabled. Starting...");
+      keep_alive();
+    }
 
     process.on("SIGINT", () => {
       logInfo("Shutting down...");
-      shutdown();
-      disconnectEris();
+      wsMap.forEach((token, ws) => {
+        if (ws || ws.readyState === WebSocket.OPEN) {
+          shutdown();
+        }
+      });
+      erisMap.forEach((erisInstance, _token) => {
+        if (erisInstance) {
+          disconnectEris();
+        }
+      });
       destroy();
       process.exit(0);
     });
@@ -411,7 +429,6 @@ async function main() {
 }
 
 main();
-
 module.exports = {
   disconnectEris,
   updateRichPresence,

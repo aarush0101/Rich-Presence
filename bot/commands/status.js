@@ -151,7 +151,7 @@ function editWsStatus(message, idealMap, token, refined) {
     );
   } else {
     const idealMapEntries = Array.from(idealMap.entries());
-    const [assignedToken, instance] = idealMapEntries[token];
+    const [assignedToken, _instance] = idealMapEntries[token];
     editMapStatus(refined, assignedToken);
     updateRichPresence(assignedToken);
     logDebug(`Rich presence status set to ${refined} for token: ${logToken(token)}...`);

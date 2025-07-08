@@ -35,15 +35,15 @@ const userTokens = process.env.USER_TOKENS.split(/\s*,\s*/).filter((token) => to
  */
 function start(message, args) {
   try {
-    let idealMap;
+    let _idealMap;
     let mapType;
 
     // Determine which map type to use based on configuration
     if (isActivityDisabled()) {
-      idealMap = erisMap;
+      _idealMap = erisMap;
       mapType = "eris";
     } else {
-      idealMap = wsMap;
+      _idealMap = wsMap;
       mapType = "ws";
     }
 

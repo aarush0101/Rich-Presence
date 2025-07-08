@@ -19,11 +19,11 @@ const { logError } = require("../../src/utilities.js");
  * handling to catch and report any issues that occur during execution.
  *
  * @param {import('discord.js').Message} message - The Discord message object that triggered the command
- * @param {string[]} args - Command arguments (not used in this command)
+ * @param {string[]} _args - Command arguments (not used in this command)
  * @returns {void}
  * @throws {Error} Logs any errors that occur during execution
  */
-function ping(message, args) {
+function ping(message, _args) {
   try {
     let pingExec = getPing();
     message.reply(`**🏓 Pong! In ${pingExec} ms.**`);

@@ -110,7 +110,7 @@ async function verifyChannels() {
 
     const channels = guild.channels.cache.filter((channel) => channel.isTextBased());
 
-    for (const [id, channel] of channels) {
+    for (const [_id, channel] of channels) {
       const botMember = await guild.members.fetch(bot.user.id);
       const permissions = channel.permissionsFor(botMember);
 
