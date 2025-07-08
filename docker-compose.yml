@@ -1,12 +1,10 @@
-version: "3.8"  
+version: "3.8"
 
 services:
   rich-presence:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/aarush0101/rich-presence:master
     container_name: rich-presence
-    ports:       
+    ports:
       - "3000:3000"
     environment:
       NODE_ENV: production
