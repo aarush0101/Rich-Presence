@@ -132,7 +132,7 @@ dist
 
 # extra files
 .husky/
-.eslintrc
+.idea
 .vscode/
 .vscode-test/
 *.code-workspace

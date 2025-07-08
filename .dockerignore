@@ -156,4 +156,5 @@ start.sh
 compressor.settings.txt
 .nvmrc
 .env.example
+.idea
 renovate.json
