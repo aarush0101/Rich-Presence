@@ -28,7 +28,7 @@
     "eris": "^0.18.0",
     "http": "^0.0.1-security",
     "words-to-numbers": "^1.5.1",
-    "ws": "^8.18.0"
+    "ws": "^8.18.3"
   },
   "engines": {
     "node": ">=22.16.0"
