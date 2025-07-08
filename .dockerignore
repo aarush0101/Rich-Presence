@@ -129,10 +129,30 @@ dist
 .yarn/install-state.gz
 .pnp.*
 
-
 # extra files
+resources/
 .husky/
+.github/
 .eslintrc
+.gitignore
+.prettierrc
+.prettierignore
+.editorconfig
 .vscode/
 .vscode-test/
 *.code-workspace
+.gitattributes
+CREDITS.md 
+CHANGELOG.md
+CONTRIBUTING.md
+LICENSE
+README.md
+SECURITY.md
+CODE_OF_CONDUCT.md
+CODEOWNERS
+tsconfig.json
+config_help.json
+start.sh
+compressor.settings.txt
+.nvmrc
+.env.example
