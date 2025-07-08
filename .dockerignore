@@ -134,6 +134,7 @@ resources/
 .husky/
 .github/
 .eslintrc
+.eslint.config.mjs
 .gitignore
 .prettierrc
 .prettierignore
