@@ -22,11 +22,11 @@ const { getPrefix } = require("../controller.js");
  * - Timestamp of when the help was requested
  *
  * @param {import('discord.js').Message} message - The Discord message object that triggered the command
- * @param {string[]} args - Command arguments (not used in this command)
+ * @param {string[]} _args - Command arguments (not used in this command)
  * @returns {void}
  * @throws {Error} Logs any errors that occur during execution
  */
-function help(message, args) {
+function help(message, _args) {
   try {
     const embed = new EmbedBuilder()
       .setColor(0x009b77)

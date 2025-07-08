@@ -11,6 +11,7 @@
 
 const path = require("path");
 const fs = require("fs");
+const { wordsToNumbers } = require("words-to-numbers");
 
 /**
  * Logs an information message to the console with an INFO prefix.
@@ -96,7 +97,6 @@ function verifyStatus(status) {
  * validateEnvVariables();
  */
 function validateEnvVariables() {
-  let variable;
   const requiredVariables = ["BOT_TOKEN", "USER_TOKENS", "PREFIX", "SERVER_ID"];
   requiredVariables.forEach((variable) => {
     variable = process.env[variable];
@@ -210,6 +210,7 @@ function assignGatewayUrl() {
       return "wss://gateway.discord.gg/?v=9&encoding=json";
     }
   } catch (err) {
+    logError("Error reading settings.conf", err);
     return "wss://gateway.discord.gg/?v=9&encoding=json";
   }
 }
