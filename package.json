@@ -23,7 +23,7 @@
   "license": "MIT",
   "dependencies": {
     "axios": "^1.8.2",
-    "discord.js": "^14.21.0",
+    "discord.js": "^14.24.0",
     "dotenv": "^17.0.0",
     "eris": "^0.18.0",
     "http": "^0.0.1-security",
